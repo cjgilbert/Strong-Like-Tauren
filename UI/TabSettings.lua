@@ -145,6 +145,11 @@ function Settings.build(parent)
   flow:header(L["Notifications"])
   step(L["Minimum gap between nudges"], "nudge.gap", fmtMin)
   check(L["Play sounds"], "nudge.sound")
+  seg({ { "alert", L["Alert"] }, { "horn", L["Horn"] }, { "chime", L["Chime"] }, { "menu", L["Menu"] } }, "nudge.soundKind")
+  flow:add(Kit.button(content, L["Test"], 100, 24, function()
+    ns.nudgeSound(true)
+    if UI.Toast and UI.Toast.Sample then UI.Toast:Sample() end
+  end), 26)
   check(L["Also show nudges in the centre of the screen"], "nudge.center")
 
   -- Away

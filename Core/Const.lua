@@ -79,6 +79,15 @@ C.SOUNDS = {
   click   = { "IG_MAINMENU_OPTION_CHECKBOX_ON" },
 }
 
+-- Due-reminder sound choices (settings.nudge.soundKind); first existing SOUNDKIT name wins, READY_CHECK is the last resort.
+C.NUDGE_SOUNDS = {
+  alert = { "READY_CHECK" },
+  horn  = { "RAID_WARNING" },
+  chime = { "UI_RAID_BOSS_WHISPER_WARNING", "IG_QUEST_LIST_COMPLETE" },
+  menu  = { "IG_QUEST_LIST_OPEN", "IG_MAINMENU_OPEN" },
+}
+C.NUDGE_FALLBACK = "READY_CHECK"
+
 -- Settings schema: { path, kind, default, min, max, step } / { path, "enum", default, values }.
 C.OPTIONS = {
   { "enabled",          "bool", true },
@@ -104,6 +113,7 @@ C.OPTIONS = {
   { "nudge.gap",        "num",  10, 5, 30, 5 },
   { "nudge.sound",      "bool", true },
   { "nudge.center",     "bool", false },
+  { "nudge.soundKind",  "enum", "alert", { "alert", "horn", "chime", "menu" } },
   { "dungeon",          "enum", "hold", { "hold", "pulls" } },
   { "away.ask",         "num",  3, 1, 10, 1 },
   { "away.credit",      "num",  10, 5, 30, 1 },

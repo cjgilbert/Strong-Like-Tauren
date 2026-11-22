@@ -105,11 +105,11 @@ function Api.player()
   return { name = name, class = class, guid = guid }
 end
 
-function Api.playSound(name)
+function Api.playSound(name, channel)
   if not (PlaySound and SOUNDKIT and name) then return false end
   local id = SOUNDKIT[name]
   if not id then return false end
-  return pcall(PlaySound, id) and true or false
+  return pcall(PlaySound, id, channel) and true or false
 end
 
 -- Diagnostics for /tauren debug: { {name, value, secret} }.

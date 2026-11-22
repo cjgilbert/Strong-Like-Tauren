@@ -74,6 +74,21 @@ function ns.sound(role)
   end
 end
 
+-- The due-reminder sound, on the Master channel so it is heard even with game sound effects turned down.
+-- force = play even when sounds are off (the Settings "Test" button).
+function ns.nudgeSound(force)
+  if not ns.db then return end
+  if not (force or ns.db.settings.nudge.sound) then return end
+  local names = C.NUDGE_SOUNDS[ns.db.settings.nudge.soundKind] or C.NUDGE_SOUNDS.alert
+  for _, n in ipairs(names) do
+    if SOUNDKIT and SOUNDKIT[n] then
+      ns.Api.playSound(n, "Master")
+      return
+    end
+  end
+  ns.Api.playSound(C.NUDGE_FALLBACK, "Master")
+end
+
 function ns.UI.refreshAll()
   local UI = ns.UI
   if UI.Totem and UI.Totem.Refresh then ns.guard(UI.Totem.Refresh, UI.Totem) end
@@ -91,7 +106,7 @@ local H = {}
 
 function H.toast(a)
   if ns.UI.Toast and ns.UI.Toast.Show then ns.UI.Toast:Show(a.w, a.f, a.moment) end
-  ns.sound("toast")
+  ns.nudgeSound()
   if FlashClientIcon then pcall(FlashClientIcon) end -- taskbar flash when the game is in the background
 end
 

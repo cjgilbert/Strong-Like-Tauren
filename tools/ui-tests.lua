@@ -221,7 +221,8 @@ ns.env.byId.longx = nil
 -- The compact reminder: title, one line, sound once, 10 s auto-close, X, Snooze 10.
 print("-- compact reminder")
 local plays, flashes = 0, 0
-_G.PlaySound = function() plays = plays + 1 end
+local lastSound, lastChannel
+_G.PlaySound = function(id, ch) plays = plays + 1 lastSound, lastChannel = id, ch end
 _G.FlashClientIcon = function() flashes = flashes + 1 end
 boot()
 local W3 = addWalk()
@@ -263,6 +264,88 @@ ns.dispatch({ { t = "toast", w = W3, f = nil, moment = "tick" } })
 click(rem.snooze)
 check(not rem._shown and ns.db.nudge.snoozeUntil and ns.db.nudge.snoozeUntil >= ns.now() + 590, "Snooze 10 snoozes and hides")
 check(ns.Queue.get(ns.db.queue, "W") ~= nil, "Snooze keeps the Walkabout queued")
+
+-- Placement, dismissal, hover pause, sounds.
+print("-- reminder placement, dismissal and sound")
+boot()
+local W4 = addWalk()
+ns.UI.Totem:Show()
+ns.UI.refreshAll()
+ns.dispatch({ { t = "toast", w = W4, f = nil, moment = "tick" } })
+local r4 = _G.StrongLikeTaurenToast
+local pt = r4._points and r4._points[#r4._points]
+check(pt and pt[1] == "TOP" and pt[2] == _G.UIParent and pt[3] == "TOP" and pt[5] < 0, "reminder is anchored to UIParent TOP")
+local inSpecial = false
+for _, n in ipairs(_G.UISpecialFrames) do if n == "StrongLikeTaurenToast" then inSpecial = true end end
+check(inSpecial, "reminder is in UISpecialFrames (Escape closes it)")
+local snap4 = #ns.db.queue.items .. "|" .. pendingCount()
+r4._scripts.OnMouseUp(r4, "LeftButton")
+check(not r4._shown and #ns.db.queue.items .. "|" .. pendingCount() == snap4, "body click dismisses without changing the queue")
+ns.UI.refreshAll()
+check(#visibleRows() == 1, "dismissed reminder leaves the item in the Totem")
+-- Escape path: the game calls Hide() on registered frames
+ns.dispatch({ { t = "toast", w = W4, f = nil, moment = "tick" } })
+r4:Hide()
+check(not r4._shown and ns.Queue.get(ns.db.queue, "W") ~= nil, "Escape (Hide) closes it and keeps the queue")
+-- hover pauses the countdown
+ns.dispatch({ { t = "toast", w = W4, f = nil, moment = "tick" } })
+r4.IsMouseOver = function() return true end
+stub.clock = stub.clock + 20
+r4._scripts.OnUpdate(r4, 20)
+check(r4._shown, "mouse-over pauses the auto-close")
+r4.IsMouseOver = nil
+stub.clock = stub.clock + 9
+r4._scripts.OnUpdate(r4, 9)
+check(r4._shown, "still shown 9 s after the mouse left")
+stub.clock = stub.clock + 2
+r4._scripts.OnUpdate(r4, 2)
+check(not r4._shown, "auto-closes 10 s after the mouse left")
+-- sounds: every name gets a distinct id so the expected SOUNDKIT entry can be told apart
+local ids = { READY_CHECK = 11, RAID_WARNING = 12, UI_RAID_BOSS_WHISPER_WARNING = 13, IG_QUEST_LIST_COMPLETE = 14,
+              IG_QUEST_LIST_OPEN = 15, IG_MAINMENU_OPEN = 16 }
+local function setKit() for k, v in pairs(ids) do _G.SOUNDKIT[k] = v end end
+local function soundFor(kind)
+  setKit()
+  ns.db.settings.nudge.sound = true
+  ns.db.settings.nudge.soundKind = kind
+  plays, lastSound, lastChannel = 0, nil, nil
+  ns.dispatch({ { t = "toast", w = W4, f = nil, moment = "tick" } })
+  return lastSound
+end
+check(ns.db.settings.nudge.soundKind == "alert", "default soundKind is alert")
+check(soundFor("alert") == ids.READY_CHECK and plays == 1 and lastChannel == "Master", "alert plays READY_CHECK on Master")
+check(soundFor("horn") == ids.RAID_WARNING, "horn plays RAID_WARNING")
+check(soundFor("chime") == ids.UI_RAID_BOSS_WHISPER_WARNING, "chime plays UI_RAID_BOSS_WHISPER_WARNING")
+check(soundFor("menu") == ids.IG_QUEST_LIST_OPEN, "menu plays IG_QUEST_LIST_OPEN")
+_G.SOUNDKIT.UI_RAID_BOSS_WHISPER_WARNING = nil
+ns.db.settings.nudge.soundKind = "chime"
+lastSound = nil
+ns.nudgeSound()
+check(lastSound == ids.IG_QUEST_LIST_COMPLETE, "chime falls back to IG_QUEST_LIST_COMPLETE")
+_G.SOUNDKIT.IG_QUEST_LIST_COMPLETE = nil
+lastSound = nil
+ns.nudgeSound()
+check(lastSound == ids.READY_CHECK, "chime falls back to READY_CHECK when nothing else exists")
+_G.SOUNDKIT.RAID_WARNING = nil
+ns.db.settings.nudge.soundKind = "horn"
+lastSound = nil
+ns.nudgeSound()
+check(lastSound == ids.READY_CHECK, "horn falls back to READY_CHECK when RAID_WARNING is missing")
+setKit()
+ns.db.settings.nudge.sound = false
+plays = 0
+ns.dispatch({ { t = "toast", w = W4, f = nil, moment = "tick" } })
+check(plays == 0, "sound off plays nothing")
+ns.db.settings.nudge.sound = true
+-- Settings Test button path: plays even with sounds off and shows a sample reminder
+plays = 0
+r4:Hide()
+ns.UI.Toast:Sample()
+ns.nudgeSound(true)
+check(r4._shown and plays == 1 and r4.text._text:find("Kodo Squats", 1, true), "Test shows a sample reminder and plays the sound")
+ns.UI.refreshAll()
+check(r4._shown, "sample reminder survives a refresh")
+r4:Hide()
 
 -- Close buttons: X and OK are neutral; nothing changes in history, rep or queue.
 print("-- close buttons")

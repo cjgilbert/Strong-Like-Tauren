@@ -71,6 +71,12 @@ function methods.CreateTexture(self, name) return mkframe("Texture", name, self)
 function methods.CreateFontString(self, name) return mkframe("FontString", name, self) end
 function methods.CreateAnimationGroup(self, name) return mkframe("AnimationGroup", name, self) end
 function methods.CreateAnimation(self, kind, name) return mkframe("Animation", name, self) end
+function methods.ClearAllPoints(self) self._points = {} return self end
+function methods.SetPoint(self, ...)
+  self._points = self._points or {}
+  self._points[#self._points + 1] = { ... }
+  return self
+end
 function methods.GetPoint() return "CENTER", G.UIParent, "CENTER", 0, 0 end
 function methods.GetCenter() return 400, 300 end
 function methods.GetScrollChild(self) self._sc = self._sc or mkframe("Frame", nil, self) return self._sc end

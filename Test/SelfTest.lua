@@ -463,6 +463,39 @@ case("scheduler: quiet in combat and dungeons, nudges once free", function()
   ok(findAct(m, "toast"), "toast on leaving")
 end)
 
+case("scheduler: snooze hides work, ends with one prompt delivery that still respects the gates", function()
+  local S = ns.Scheduler
+  local db, env, now = T.world()
+  run(db, env, now, now + 30 * 60) -- a Walkabout is due and was delivered once
+  local t = now + 30 * 60
+  ok(ns.Queue.get(db.queue, "W"), "walkabout pending")
+  db.nudge.lastAt = t - 120 -- last toast 2 min before the snooze
+  local logs = #db.log.rows
+  S.snooze(db, 10, t)
+  ok(S.snoozed(db, t + 1, idle()) and not S.snoozed(db, t + 601, idle()), "snoozed() follows the timer")
+  db.body.rage.v = 100 -- a Feat is earned during the snooze
+  local acts = run(db, env, t + 15, t + 10 * 60 - 15)
+  ok(not findAct(acts, "toast"), "no toast during the snooze")
+  ok(ns.Queue.get(db.queue, "F"), "the Feat joined the queue quietly")
+  local seat = db.body.acc
+  local end1 = run(db, env, t + 10 * 60, t + 10 * 60)
+  local toast = findAct(end1, "toast")
+  ok(toast, "toast fires at 10:00 despite the limiter")
+  ok(toast.f, "the Feat earned during the snooze is included")
+  eq(#db.log.rows, logs, "snoozing logged nothing")
+  ok(db.body.acc >= seat, "seated clock kept running")
+  -- snooze ends while in combat: waits for the combat moment (limiter bypassed there too)
+  local db2, env2 = T.world()
+  run(db2, env2, now, now + 30 * 60)
+  db2.nudge.lastAt = t - 120
+  S.snooze(db2, 10, t)
+  local a2 = run(db2, env2, t + 15, t + 11 * 60, { inst = "none", combat = true })
+  ok(not findAct(a2, "toast"), "no toast while in combat at snooze end")
+  local m = S.moment(db2, "combat", t + 11 * 60 + 15, idle(), env2)
+  ok(findAct(m, "toast"), "toast on the combat moment")
+  ok(not db2.nudge.snoozeEnd, "flag cleared after delivery")
+end)
+
 case("progress: streak survives days off, breaks on a played day without the daily", function()
   local db = T.world()
   local function day(k, play, dq) db.days[k] = { ex = {}, g = {}, w = { due = 0, done = 0, skip = 0, cred = 0 },

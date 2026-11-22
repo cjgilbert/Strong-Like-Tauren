@@ -134,6 +134,14 @@ end
 
 -- Delivery -------------------------------------------------------------------------------------------
 
+-- Snooze active? (timed, or "until I leave" while still inside an instance). While true the UI hides the pending work
+-- entirely (Totem rows, reminder); nothing is skipped or logged and the seated clock keeps running.
+function S.snoozed(db, now, ctx)
+  local N = db.nudge
+  local inst = (ctx and ctx.inst) or "none"
+  return (now < (N.snoozeUntil or 0) or (N.snoozeInst and inst ~= "none")) and true or false
+end
+
 -- Quiet = the game is busy; may = a nudge is allowed right now.
 function S.gate(db, now, ctx)
   local s, N = db.settings, db.nudge
@@ -142,7 +150,7 @@ function S.gate(db, now, ctx)
     or (ctx.settleUntil and now < ctx.settleUntil)
     or inst == "raid" or inst == "pvp" or inst == "arena" or inst == "scenario"
     or (inst == "party" and s.dungeon == "hold")
-  local snoozed = now < (N.snoozeUntil or 0) or (N.snoozeInst and inst ~= "none")
+  local snoozed = S.snoozed(db, now, ctx)
   local paused = now < (N.pauseUntil or 0) or ctx.pausedSession or db.body.paused ~= nil
   quiet = quiet and true or false
   local away = ctx.away and true or false
@@ -165,12 +173,15 @@ function S.nudgeWait(db)
 end
 
 function S.deliver(db, now, ctx, env, acts, moment, bypassLimiter)
-  local W, F = S.deliverable(db, now)
-  if not W and not F then return false end
-  if not S.gate(db, now, ctx).may then return false end
   local N = db.nudge
+  local W, F = S.deliverable(db, now)
+  if not W and not F then N.snoozeEnd = nil return false end
+  if not S.gate(db, now, ctx).may then return false end
+  -- a snooze that ended gets one prompt delivery (limiter bypassed once), but never past the quiet/away/pause gates
+  if N.snoozeEnd then bypassLimiter = true end
   if not bypassLimiter and now < (N.lastAt or 0) + S.nudgeWait(db) then return false end
   N.lastAt = now
+  N.snoozeEnd = nil
   N.ignored = (N.ignored or 0) + 1
   push(acts, { t = "toast", w = W, f = F, moment = moment })
   return true
@@ -196,6 +207,13 @@ function S.tick(db, now, ctx, env)
     B.awayStart, B.awayFrom = nil, nil
     dt = 0
     push(acts, { t = "fresh" })
+  end
+
+  -- A timed snooze just ran out: flag it so the next delivery (this tick or the next safe moment) bypasses the limiter.
+  local N = db.nudge
+  if (N.snoozeUntil or 0) > 0 and now >= N.snoozeUntil then
+    N.snoozeUntil = 0
+    N.snoozeEnd = true
   end
 
   if not s.enabled then return acts end
@@ -284,7 +302,10 @@ end
 function S.moment(db, kind, now, ctx, env)
   local acts = {}
   if not db.settings.enabled then return acts end
-  if kind == "leave" then db.nudge.snoozeInst = nil end
+  if kind == "leave" then
+    db.nudge.snoozeInst = nil
+    db.nudge.snoozeEnd = nil
+  end
   local shown = S.deliver(db, now, ctx, env, acts, kind, kind == "leave")
   if not shown and (kind == "taxi" or kind == "rest" or kind == "leave") then
     local B, s = db.body, db.settings
@@ -409,6 +430,7 @@ end
 
 function S.snooze(db, minutes, now)
   db.nudge.snoozeUntil = now + minutes * 60
+  db.nudge.snoozeEnd = nil
   db.nudge.ignored = 0
 end
 
@@ -425,6 +447,7 @@ function S.resume(db)
   db.nudge.pauseUntil = 0
   db.nudge.snoozeUntil = 0
   db.nudge.snoozeInst = nil
+  db.nudge.snoozeEnd = nil
 end
 
 -- Click on "acknowledge" (any interaction): resets the nudge backoff.

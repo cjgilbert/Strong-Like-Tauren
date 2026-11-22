@@ -199,6 +199,7 @@ end
 -- Called from ns.UI.refreshAll: follows the queue, and hides once nothing it listed is pending.
 function Ts:Refresh()
   if not (frame and frame:IsShown()) then return end
+  if ns.db and ns.Scheduler.snoozed(ns.db, ns.now(), ns.ctx or {}) then self:Hide() return end
   if render() == 0 then self:Hide() end
 end
 

@@ -10,6 +10,7 @@ local T -- Theme, resolved lazily so load order inside UI never matters
 local WIDTH, HEADER_H, ROW_H, MAX_ROWS = 300, 56, 58, 6
 local rows = {}
 local frame, snoozeMenu
+local snoozedNow = false
 local hidden = false
 local dirty = false
 local entries = {}
@@ -258,6 +259,8 @@ end
 local function collect()
   entries = {}
   if not (ns.db and ns.db.queue) then return end
+  snoozedNow = ns.Scheduler.snoozed(ns.db, ns.now(), ns.ctx or {})
+  if snoozedNow then return end -- a snooze hides the work completely
   for _, it in ipairs(ns.Queue.list(ns.db.queue)) do
     for idx, sl in ipairs(it.slots) do
       if not sl.o and #entries < MAX_ROWS then entries[#entries + 1] = { item = it, idx = idx, slot = sl } end
@@ -378,6 +381,9 @@ function Tm:Init()
     acc = acc + el
     if acc >= 1 then
       acc = 0
+      if ns.ready and ns.db and ns.Scheduler.snoozed(ns.db, ns.now(), ns.ctx or {}) ~= snoozedNow then
+        ns.guard(Tm.Refresh, Tm) -- a snooze began or ended
+      end
       if frame:IsShown() then Tm:UpdateHeader() end
     end
   end)

@@ -506,6 +506,44 @@ check(ns.db.settings.totem.collapsed == false and #visibleRows() == 2 and tf._h 
 ns.UI.Totem:Refresh()
 check(#visibleRows() == 2, "collapse: expanded survives Refresh")
 
+-- Snooze hides everything; the end comes back like a normal reminder.
+print("-- snooze hides and returns")
+boot()
+do
+  local base = realServerTime()
+  local soff = 0
+  _G.GetServerTime = function() return base + soff end
+  setKit()
+  ns.db.settings.nudge.soundKind = "horn"
+  ns.db.settings.nudge.sound = true
+  local W = addWalk(); addFeat()
+  ns.UI.Totem:Show(); ns.UI.refreshAll()
+  check(#visibleRows() == 3, "snooze: 3 rows before")
+  local row = rowFor("Walk") or visibleRows()[1]
+  click(row.snooze)
+  local menu = _G.StrongLikeTaurenSnoozeMenu
+  click(menu.btns[2]) -- 10 min
+  check(#visibleRows() == 0, "snooze: no Totem rows while snoozed")
+  ns.dispatch({ { t = "toast", w = W, f = nil, moment = "tick" } })
+  ns.UI.refreshAll()
+  check(not toastShown(), "snooze: reminder hidden while snoozed")
+  plays = 0
+  for _ = 1, 41 do soff = soff + 15; ns.ctx.lastInput = ns.now(); ns.Do.tick() end
+  check(#visibleRows() == 3, "snooze end: rows visible again")
+  check(toastShown() and plays >= 1 and lastSound == ids.RAID_WARNING, "snooze end: reminder shown with the horn")
+  -- until I leave
+  ns.UI.Toast:Hide()
+  ns.ctx.inst = "party"
+  ns.UI.refreshAll()
+  check(#visibleRows() == 3, "inst: rows visible before snoozing")
+  ns.Do.snoozeInstance()
+  check(#visibleRows() == 0, "inst: rows hidden after 'until I leave'")
+  ns.ctx.inst = "none"
+  ns.Do.moment("leave")
+  check(#visibleRows() == 3, "inst: rows return on leave")
+  _G.GetServerTime = realServerTime
+end
+
 print(("ui-tests: %d passed, %d failed"):format(passed, failed))
 print(failed == 0 and "UI TESTS OK" or ("UI TESTS: " .. failed .. " failure(s)"))
 os.exit(failed == 0 and 0 or 1)

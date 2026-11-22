@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+
+- Changed: snoozing hides the snoozed exercises completely; when the snooze ends they return as a normal reminder (same sound, popup and quiet-time rules, waiting for a safe moment if needed).
+
 ## 0.1.3
 
 - Changed: the due reminder appears top-center with a glow, closes on click, Escape or X, and pauses its 10-second timer while hovered.

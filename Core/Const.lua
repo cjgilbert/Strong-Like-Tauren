@@ -6,7 +6,7 @@ local C = {}
 ns.C = C
 
 C.SCHEMA = 1
-C.VERSION = "0.1.3"
+C.VERSION = "0.1.4"
 C.MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
 C.ICON = C.MEDIA .. "SLT_Icon"
 C.LOGO = C.MEDIA .. "SLT_Logo"

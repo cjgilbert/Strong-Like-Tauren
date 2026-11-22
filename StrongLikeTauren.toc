@@ -3,6 +3,7 @@
 ## Notes: A smart workout buddy for WoW Forever: breaks up your sitting every 30 minutes, turns questing into bonus sets, and never interrupts a fight.
 ## Author: Chris Gilbert
 ## Version: 0.1.0
+## X-Curse-Project-ID: 1822563
 ## IconTexture: Interface\AddOns\StrongLikeTauren\Media\SLT_Icon
 ## SavedVariables: StrongLikeTaurenDB
 ## SavedVariablesPerCharacter: StrongLikeTaurenCharDB

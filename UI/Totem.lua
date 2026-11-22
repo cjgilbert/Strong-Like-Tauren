@@ -19,6 +19,12 @@ local forceLayout = false -- a collapse/expand click is applied even in combat (
 local PAUSE_ICON, PLAY_ICON = "Interface\\TimeManager\\PauseButton", "Interface\\TimeManager\\PlayButton"
 local UP_ICON = "Interface\\RAIDFRAME\\ReadyCheck-Ready"
 local BTN = 14 -- header icon buttons: fixed size so the header never shifts
+local HOLD_H = 14 -- fixed status line at the bottom, reserved only while reminders are on hold
+local holdReserved = false
+local HOLD_WHY = {
+  combat = "in combat", encounter = "boss fight", loading = "loading", dead = "dead", cinematic = "cutscene",
+  settling = "just a moment", instance = "instance", away = "away",
+}
 
 local function theme()
   T = T or ns.UI.Theme
@@ -217,6 +223,15 @@ local function repProgress()
     ("%s: %s %s / %s"):format(C.FACTION, cur.name, n(rep), n(nxt.min))
 end
 
+-- Text for the "reminders on hold" line, or nil when nothing is pending or the gate is open / snoozed / switched off.
+local function holdText()
+  if not (ns.db and ns.ready and #entries > 0) then return nil end
+  local g = ns.Scheduler.gate(ns.db, ns.now(), ns.ctx or {})
+  if g.may or not g.why or g.why == "snoozed" or g.why == "off" then return nil end
+  if g.why == "paused" then return "Reminders paused" end
+  return "Reminder waits: " .. (HOLD_WHY[g.why] or g.why)
+end
+
 function Tm:UpdateHeader()
   if not (frame and ns.db and ns.env) then return end
   local th = theme()
@@ -253,6 +268,10 @@ function Tm:UpdateHeader()
   frame.rep:SetValue(p)
   frame.rep:SetBarColor(th.C.gold)
   frame.rep.text:SetText(repText)
+
+  local hold = holdText()
+  frame.hold:SetText(hold or "")
+  frame.hold:SetShown(hold ~= nil and holdReserved)
 end
 
 -- Refresh -------------------------------------------------------------------------------------------------------------------------
@@ -290,7 +309,9 @@ function Tm:Refresh()
     if not collapsed and entries[i] then layoutRow(r, i, entries[i]) else r:Hide() r.itemId = nil end
   end
   local n = collapsed and 0 or #entries
-  frame:SetHeight(HEADER_H + n * ROW_H + (n > 0 and 4 or 0))
+  holdReserved = holdText() ~= nil
+  frame:SetHeight(HEADER_H + n * ROW_H + (n > 0 and 4 or 0) + (holdReserved and HOLD_H or 0))
+  self:UpdateHeader()
   if hidden or (s.totem.hideIdle and #entries == 0) then frame:Hide() else frame:Show() end
 end
 
@@ -352,6 +373,13 @@ function Tm:Init()
   frame.rep = th.Bar(frame, WIDTH - 46 - 30, 12, th.C.gold)
   frame.rep:SetPoint("TOPLEFT", 48, -38)
 
+  -- Status line shown while reminders are on hold; fixed height, one line, short strings (never truncated).
+  frame.hold = th.Text(frame, "GameFontNormalSmall", "", th.C.amber)
+  frame.hold:SetHeight(12)
+  frame.hold:SetWordWrap(false)
+  frame.hold:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 10, 4)
+  frame.hold:Hide()
+
   frame.collapse = th.Button(frame, "-", 18, 18, function()
     forceLayout = true
     ns.Do.setSetting("totem.collapsed", not ns.db.settings.totem.collapsed)
@@ -383,6 +411,8 @@ function Tm:Init()
       acc = 0
       if ns.ready and ns.db and ns.Scheduler.snoozed(ns.db, ns.now(), ns.ctx or {}) ~= snoozedNow then
         ns.guard(Tm.Refresh, Tm) -- a snooze began or ended
+      elseif ns.ready and ns.db and (holdText() ~= nil) ~= holdReserved then
+        ns.guard(Tm.Refresh, Tm) -- reminders went on hold or came off hold (re-layout waits for combat to end)
       end
       if frame:IsShown() then Tm:UpdateHeader() end
     end

@@ -7,6 +7,7 @@ ns.Events = E
 
 local ctx = ns.ctx
 local AWAY_IDLE = 180
+local CINEMATIC_MAX, ENCOUNTER_MAX, LOADING_MAX = 600, 1800, 120 -- safety nets for missed "end" events (seconds)
 local primed = false
 local lastCx, lastCy
 local combatToken = 0
@@ -71,6 +72,30 @@ function E.poll()
   ctx.resting = Api.resting()
   ctx.dead = Api.dead()
 
+  -- Flags that events set but may never clear are re-checked here so a missed end event cannot stick forever.
+  local cin = Api.inCinematic()
+  if type(cin) == "boolean" then ctx.cinematic = cin end
+  if ctx.cinematic then
+    ctx.cinematicAt = ctx.cinematicAt or t
+    if t - ctx.cinematicAt >= CINEMATIC_MAX then ctx.cinematic = false end
+  end
+  if not ctx.cinematic then ctx.cinematicAt = nil end
+
+  local enc = Api.encounterInProgress()
+  if type(enc) == "boolean" then ctx.encounter = enc end
+  if ctx.inst == "none" then ctx.encounter = false end
+  if ctx.encounter then
+    ctx.encounterAt = ctx.encounterAt or t
+    if t - ctx.encounterAt >= ENCOUNTER_MAX then ctx.encounter = false end
+  end
+  if not ctx.encounter then ctx.encounterAt = nil end
+
+  if ctx.loading then
+    ctx.loadingAt = ctx.loadingAt or t
+    if t - ctx.loadingAt >= LOADING_MAX then ctx.loading = false end
+  end
+  if not ctx.loading then ctx.loadingAt = nil end
+
   -- cursor movement counts as input
   if cursorMoved() then
     ctx.lastInput = t
@@ -114,6 +139,7 @@ function H.PLAYER_ENTERING_WORLD(initial, reloading)
   local t = now()
   ctx.settleUntil = t + 5
   ctx.lastInput = t
+  ctx.loading, ctx.loadingAt = false, nil
   E.poll()
   if ns.cdb and (initial or reloading) then
     local id = Api.mapId()
@@ -148,25 +174,39 @@ function H.PLAYER_REGEN_ENABLED()
   end
 end
 
-function H.ENCOUNTER_START() ctx.encounter = true end
+function H.ENCOUNTER_START()
+  ctx.encounter = true
+  ctx.encounterAt = now()
+end
 
 function H.ENCOUNTER_END(_, _, _, _, success)
   ctx.encounter = false
+  ctx.encounterAt = nil
   if Api.safe(success) == 1 then rage("boss") end
 end
 
-function H.LOADING_SCREEN_ENABLED() ctx.loading = true end
+function H.LOADING_SCREEN_ENABLED()
+  ctx.loading = true
+  ctx.loadingAt = now()
+end
 
 function H.LOADING_SCREEN_DISABLED()
   ctx.loading = false
+  ctx.loadingAt = nil
   ctx.settleUntil = now() + 5
   ctx.lastInput = now()
 end
 
-function H.CINEMATIC_START() ctx.cinematic = true end
-function H.CINEMATIC_STOP() ctx.cinematic = false end
-function H.PLAY_MOVIE() ctx.cinematic = true end
-function H.STOP_MOVIE() ctx.cinematic = false end
+function H.CINEMATIC_START()
+  ctx.cinematic = true
+  ctx.cinematicAt = now()
+end
+function H.CINEMATIC_STOP() ctx.cinematic = false ctx.cinematicAt = nil end
+function H.PLAY_MOVIE()
+  ctx.cinematic = true
+  ctx.cinematicAt = now()
+end
+function H.STOP_MOVIE() ctx.cinematic = false ctx.cinematicAt = nil end
 
 function H.PLAYER_DEAD()
   ctx.dead = true

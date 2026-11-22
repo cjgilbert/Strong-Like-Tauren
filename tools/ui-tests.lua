@@ -544,6 +544,145 @@ do
   _G.GetServerTime = realServerTime
 end
 
+-- Sticky quiet flags heal themselves --------------------------------------------------------------------------
+print("-- stuck quiet flags")
+do
+  local base = realServerTime() + 5000
+  local soff = 0
+  _G.GetServerTime = function() return base + soff end
+  boot()
+  if _G.StrongLikeTaurenToast then _G.StrongLikeTaurenToast._shown = false end -- stale frame from an earlier scenario
+  local E = ns.Events
+  local function fire(ev, ...) E.frame._scripts.OnEvent(E.frame, ev, ...) end
+  local function advance(sec) soff = soff + sec end
+  local function poll() ns.ctx.lastInput = ns.now(); E.poll() end
+  local function open() ns.ctx.settleUntil = 0; ns.ctx.lastInput = ns.now() end
+  local function gate() return ns.Scheduler.gate(ns.db, ns.now(), ns.ctx) end
+  local saved = { _G.InCinematic, _G.IsInCinematicScene, _G.MovieFrame, _G.CinematicFrame, _G.IsEncounterInProgress,
+                  _G.IsInInstance }
+
+  -- movie with no stop event, probe says it is over
+  open()
+  fire("PLAY_MOVIE")
+  check(ns.ctx.cinematic == true and gate().why == "cinematic" and not gate().may, "movie: gate blocks while it plays")
+  stub.inCinematic = false
+  poll()
+  check(ns.ctx.cinematic == false and gate().may and gate().why == nil, "movie: poll with probe 'no' reopens the gate")
+
+  -- a due Walkabout produces a toast once the stuck flag clears
+  fire("PLAY_MOVIE")
+  addWalk()
+  ns.Do.tick()
+  check(not toastShown(), "walkabout: no toast while the movie flag is stuck")
+  poll(); open()
+  ns.Do.tick()
+  check(toastShown(), "walkabout: toast appears once the stuck flag has cleared")
+  ns.UI.Toast:Hide()
+
+  -- probe unavailable: the 10 minute safety net
+  _G.InCinematic, _G.IsInCinematicScene, _G.MovieFrame, _G.CinematicFrame = nil, nil, nil, nil
+  check(ns.Api.inCinematic() == nil, "cinematic probe: nil when nothing can tell")
+  fire("PLAY_MOVIE")
+  advance(599); poll()
+  check(ns.ctx.cinematic == true, "movie: still held just before 10 minutes without a probe")
+  advance(2); poll()
+  check(ns.ctx.cinematic == false, "movie: safety net clears it after 10 minutes")
+  _G.InCinematic, _G.IsInCinematicScene, _G.MovieFrame, _G.CinematicFrame = saved[1], saved[2], saved[3], saved[4]
+
+  -- boss fight: leaving the instance clears it
+  _G.IsEncounterInProgress = nil
+  check(ns.Api.encounterInProgress() == nil, "encounter probe: nil when the function is missing")
+  _G.IsInInstance = function() return true, "raid" end
+  poll()
+  fire("ENCOUNTER_START")
+  poll()
+  check(ns.ctx.encounter == true and ns.ctx.inst == "raid", "encounter: held inside the raid")
+  _G.IsInInstance = saved[6]
+  poll()
+  check(ns.ctx.inst == "none" and ns.ctx.encounter == false, "encounter: leaving the instance clears it")
+  _G.IsInInstance = function() return true, "raid" end
+  poll()
+  fire("ENCOUNTER_START")
+  advance(1801); poll()
+  check(ns.ctx.encounter == false, "encounter: safety net clears it after 30 minutes")
+  _G.IsInInstance = saved[6]
+  poll()
+  _G.IsEncounterInProgress = saved[5]
+  fire("ENCOUNTER_START")
+  poll()
+  check(ns.ctx.encounter == false, "encounter: probe 'no' overrides the flag")
+
+  -- loading screen without a DISABLED event
+  fire("LOADING_SCREEN_ENABLED")
+  advance(119); poll()
+  check(ns.ctx.loading == true, "loading: held for under 2 minutes")
+  advance(2); poll()
+  check(ns.ctx.loading == false, "loading: cleared 2 minutes after it began")
+  fire("LOADING_SCREEN_ENABLED")
+  fire("PLAYER_ENTERING_WORLD", false, false)
+  check(ns.ctx.loading == false, "loading: PLAYER_ENTERING_WORLD clears it")
+
+  -- gate.why, in priority order
+  open()
+  local function whyOf(mut, setting)
+    local ctx = { inst = "none" }
+    for k, v in pairs(mut or {}) do ctx[k] = v end
+    local old = ns.db.settings.dungeon
+    if setting then ns.db.settings.dungeon = setting end
+    local g = ns.Scheduler.gate(ns.db, ns.now(), ctx)
+    ns.db.settings.dungeon = old
+    return g.why, g.may
+  end
+  local t0 = ns.now()
+  check(whyOf({}) == nil and select(2, whyOf({})) == true, "why: nil when open")
+  check(whyOf({ combat = true }) == "combat", "why: combat")
+  check(whyOf({ encounter = true }) == "encounter", "why: encounter")
+  check(whyOf({ loading = true }) == "loading", "why: loading")
+  check(whyOf({ dead = true }) == "dead", "why: dead")
+  check(whyOf({ cinematic = true }) == "cinematic", "why: cinematic")
+  check(whyOf({ settleUntil = t0 + 5 }) == "settling", "why: settling")
+  check(whyOf({ inst = "raid" }) == "instance", "why: instance")
+  check(whyOf({ inst = "party" }, "hold") == "instance", "why: dungeon hold")
+  check(whyOf({ away = true }) == "away", "why: away")
+  check(whyOf({ combat = true, cinematic = true }) == "combat", "why: first reason wins")
+  ns.db.nudge.snoozeUntil = t0 + 600
+  check(whyOf({}) == "snoozed", "why: snoozed")
+  ns.db.nudge.snoozeUntil = 0
+  ns.db.nudge.pauseUntil = t0 + 600
+  check(whyOf({}) == "paused", "why: paused (timed)")
+  ns.db.nudge.pauseUntil = 0
+  check(whyOf({ pausedSession = true }) == "paused", "why: paused (session)")
+  ns.db.settings.enabled = false
+  check(whyOf({ combat = true }) == "off", "why: off")
+  ns.db.settings.enabled = true
+
+  -- Totem says reminders are on hold
+  boot()
+  addWalk()
+  ns.UI.Totem:Show(); ns.UI.refreshAll()
+  local hold = ns.UI.Totem.frame.hold
+  check(not hold._shown, "totem hold: nothing shown while reminders can come")
+  local h0 = ns.UI.Totem.frame._h
+  ns.ctx.pausedSession = true
+  ns.UI.refreshAll()
+  check(hold._shown and hold._text == "Reminders paused", "totem hold: 'Reminders paused' for a paused session")
+  check(ns.UI.Totem.frame._h > h0, "totem hold: extra line reserves its own space")
+  ns.ctx.pausedSession = false
+  ns.ctx.combat = true
+  ns.UI.refreshAll()
+  check(hold._shown and hold._text == "Reminder waits: in combat", "totem hold: combat reason")
+  ns.ctx.combat = false
+  ns.ctx.cinematic = true
+  ns.UI.refreshAll()
+  check(hold._shown and hold._text == "Reminder waits: cutscene", "totem hold: cutscene reason")
+  ns.ctx.cinematic = false
+  ns.ctx.settleUntil = 0
+  ns.UI.refreshAll()
+  check(not hold._shown and ns.UI.Totem.frame._h == h0, "totem hold: line and space go away again")
+
+  _G.GetServerTime = realServerTime
+end
+
 print(("ui-tests: %d passed, %d failed"):format(passed, failed))
 print(failed == 0 and "UI TESTS OK" or ("UI TESTS: " .. failed .. " failure(s)"))
 os.exit(failed == 0 and 0 or 1)

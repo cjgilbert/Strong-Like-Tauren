@@ -74,6 +74,41 @@ function Api.dead()
   return a and true or false
 end
 
+-- Cutscene or movie playing? true/false when the client can tell, nil when it cannot.
+function Api.inCinematic()
+  local known = false
+  local yes = false
+  local function check(fn)
+    if type(fn) ~= "function" then return end
+    local ok, v = pcall(fn)
+    if not ok or isSecret(v) then return end
+    known = true
+    if v then yes = true end
+  end
+  check(InCinematic)
+  check(IsInCinematicScene)
+  for _, name in ipairs({ "MovieFrame", "CinematicFrame" }) do
+    local f = rawget(_G, name)
+    if type(f) == "table" and type(f.IsShown) == "function" then
+      local ok, v = pcall(f.IsShown, f)
+      if ok and not isSecret(v) then
+        known = true
+        if v then yes = true end
+      end
+    end
+  end
+  if not known then return nil end
+  return yes
+end
+
+-- Boss fight in progress? nil when unknown.
+function Api.encounterInProgress()
+  if type(IsEncounterInProgress) ~= "function" then return nil end
+  local v = call(IsEncounterInProgress)
+  if v == nil then return nil end
+  return v and true or false
+end
+
 function Api.mapId()
   if not C_Map or not C_Map.GetBestMapForUnit then return nil end
   local v = call(C_Map.GetBestMapForUnit, "player")

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5
+
+- Fixed: reminders could stop appearing for the rest of a session after a cutscene, boss fight or loading screen whose end the game didn't report.
+- New: the Totem says when reminders are on hold and why; `/tauren debug` shows the reason.
+
 ## 0.1.4
 
 - Changed: snoozing hides the snoozed exercises completely; when the snooze ends they return as a normal reminder (same sound, popup and quiet-time rules, waiting for a safe moment if needed).

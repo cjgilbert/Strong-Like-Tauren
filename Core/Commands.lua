@@ -116,6 +116,11 @@ function handlers.debug()
     local st = ns.Scheduler.status(ns.db, ns.now(), ctx)
     say(("seated %s, rage %.0f, rooted %d, gate may=%s"):format(U.fmtClock(st.seated), st.rage, st.rooted,
       tostring(ns.Scheduler.gate(ns.db, ns.now(), ctx).may)))
+    local g = ns.Scheduler.gate(ns.db, ns.now(), ctx)
+    local last = ns.db.nudge.lastAt or 0
+    local ago = last > 0 and ("%d min ago"):format(math.floor((ns.now() - last) / 60)) or "never"
+    say(("gate: may=%s why=%s; last reminder %s; limiter wait %d min"):format(tostring(g.may and true or false),
+      tostring(g.why), ago, math.floor(ns.Scheduler.nudgeWait(ns.db) / 60)))
   end
 end
 

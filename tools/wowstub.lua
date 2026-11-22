@@ -157,6 +157,11 @@ G.UnitAffectingCombat = function() return false end
 G.IsResting = function() return false end
 G.IsInInstance = function() return false, "none" end
 G.InCombatLockdown = function() return false end
+G.InCinematic = function() return stub.inCinematic and true or false end
+G.IsInCinematicScene = function() return false end
+G.IsEncounterInProgress = function() return stub.inEncounter and true or false end
+G.MovieFrame = mkframe("Frame", "MovieFrame")
+G.CinematicFrame = mkframe("Frame", "CinematicFrame")
 G.IsInGroup = function() return false end
 G.GetNumGroupMembers = function() return 0 end
 G.C_Map = { GetBestMapForUnit = function() return 1411 end }

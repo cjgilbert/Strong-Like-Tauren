@@ -154,8 +154,21 @@ function S.gate(db, now, ctx)
   local paused = now < (N.pauseUntil or 0) or ctx.pausedSession or db.body.paused ~= nil
   quiet = quiet and true or false
   local away = ctx.away and true or false
+  local why
+  if not s.enabled then why = "off"
+  elseif ctx.combat then why = "combat"
+  elseif ctx.encounter then why = "encounter"
+  elseif ctx.loading then why = "loading"
+  elseif ctx.dead then why = "dead"
+  elseif ctx.cinematic then why = "cinematic"
+  elseif ctx.settleUntil and now < ctx.settleUntil then why = "settling"
+  elseif inst == "raid" or inst == "pvp" or inst == "arena" or inst == "scenario"
+    or (inst == "party" and s.dungeon == "hold") then why = "instance"
+  elseif away then why = "away"
+  elseif snoozed then why = "snoozed"
+  elseif paused then why = "paused" end
   return { quiet = quiet, away = away, snoozed = snoozed and true or false, paused = paused and true or false,
-           may = s.enabled and not quiet and not away and not snoozed and not paused }
+           may = s.enabled and not quiet and not away and not snoozed and not paused, why = why }
 end
 
 -- What would be shown now: the Walkabout (with a Feat riding along), or a Feat alone once it has waited 30 min.

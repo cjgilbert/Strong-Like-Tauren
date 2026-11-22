@@ -7,7 +7,8 @@ local Picker, Progress, Library = ns.Picker, ns.Progress, ns.Library
 -- Every function returns a list of action tables; the UI (or the simulator) carries them out:
 --   toast {w, f, moment}   ask {dur}   credit {row, prevAcc, dur}   offer {moment}   due {item}
 --   feat {item, flavor, merged}   rooted {n}   done {row, item, finished, undo}   skip {item}
---   daily   standing {name}   achieve {a}   expired {item}   fresh   rageCapped {left}
+--   daily   standing {name}   achieve {a}   expired {item}   fresh   rageCapped {left, bank}
+--   enraged {item, flavor} (with the feat action, only when a new Double Feat is created)
 --
 -- ctx (game context): combat, encounter, loading, dead, cinematic, inst ("none"|"party"|"raid"|"pvp"|"arena"|
 --   "scenario"), taxi, resting, away, awaySince, settleUntil, pausedSession
@@ -256,7 +257,7 @@ function S.tick(db, now, ctx, env)
     local day = History.day(db, dayKey)
     day.play = day.play + dt
     if B.acc > day.seatMax then day.seatMax = B.acc end
-    if not B.restDay then Rage.passive(B.rage, dt, s.rage.full) end
+    if not B.restDay then Rage.passive(B.rage, dt, s.rage.full, s.rage.bank) end
   end
 
   -- Walkabout due (or growing while ignored).
@@ -280,20 +281,29 @@ function S.tick(db, now, ctx, env)
   end
 
   -- Feat of Strength earned.
+  local bank = s.rage.bank and true or false
+  if not B.restDay then Rage.passive(B.rage, 0, s.rage.full, bank) end -- clamp a banked value if banking was switched off
   if not B.restDay and Rage.ready(B.rage, now, s.rage.cd) then
-    local flavor = Rage.spend(B.rage, now)
+    -- A Double Feat needs 200 banked and no Feat already waiting; otherwise one Feat (or the +25% merge) for 100.
+    local double = bank and B.rage.v >= 200 and Queue.get(db.queue, "F") == nil
+    local flavor = Rage.spend(B.rage, now, double and 2 or 1)
     B.cappedNoted = nil
     local bonus = (flavor == "level") and 0.25 or 0
     local P = pickerFor(db, env, now)
+    local n = double and math.min(6, 2 * s.feat.slots) or s.feat.slots
     local it, created, merged = Queue.addFeat(db.queue, now, flavor, bonus, s.feat.expireH,
-      function(b, fl) return Picker.featSlots(P, s.feat.slots, b, fl) end,
-      function(slot, factor) Picker.rescale(env.byId, slot, factor) end)
+      function(b, fl) return Picker.featSlots(P, n, b, fl) end,
+      function(slot, factor) Picker.rescale(env.byId, slot, factor) end, double)
     local day = History.day(db, dayKey)
     day.f.earn = day.f.earn + 1
     push(acts, { t = "feat", item = it, flavor = flavor, merged = merged, created = created })
-  elseif not B.restDay and B.rage.v >= 100 and not B.cappedNoted then
+    if double and created then
+      db.prog.enraged = (db.prog.enraged or 0) + 1
+      push(acts, { t = "enraged", item = it, flavor = flavor })
+    end
+  elseif not B.restDay and B.rage.v >= Rage.cap(bank) and not B.cappedNoted then
     B.cappedNoted = true
-    push(acts, { t = "rageCapped", left = Rage.cooldownLeft(B.rage, now, s.rage.cd) })
+    push(acts, { t = "rageCapped", left = Rage.cooldownLeft(B.rage, now, s.rage.cd), bank = bank })
   end
 
   -- Expired Feats (logged, no penalty).
@@ -338,6 +348,10 @@ local function finishItem(db, it, dayKey, acts, row)
   Queue.remove(db.queue, it.id)
   if Queue.anyDone(it) then
     if row then row.cn = true end
+    if it.double then
+      db.prog.doubles = (db.prog.doubles or 0) + 1
+      if row then row.dbl = true end
+    end
     if Progress.onCompletion(db, dayKey) then
       local got = Progress.addRep(db, C.REP.daily, dayKey)
       if row then row.r = (row.r or 0) + got end
@@ -392,6 +406,7 @@ function S.undo(db, rowId, before)
   local row = History.undo(db, rowId)
   if not row then return false end
   Progress.removeRep(db, row.r)
+  if row.dbl then db.prog.doubles = math.max(0, (db.prog.doubles or 1) - 1) end
   if row.cn then
     local day = History.day(db, row.d)
     day.dn = math.max(0, (day.dn or 1) - 1)
@@ -512,7 +527,7 @@ end
 
 function S.rageEvent(db, kind, now)
   if db.body.restDay or not db.settings.enabled then return 0 end
-  return Rage.event(db.body.rage, kind, now, db.settings.rage.w, C.RAGE_DEDUPE)
+  return Rage.event(db.body.rage, kind, now, db.settings.rage.w, C.RAGE_DEDUPE, db.settings.rage.bank)
 end
 
 function S.setRestDay(db, on, now)

@@ -112,9 +112,11 @@ function Today.refresh(root)
   if st.restDay then rtext = L["Rest day"]
   elseif st.F then rtext = L["Feat of Strength ready"]
   elseif rv >= 100 and (st.featCooldown or 0) > 0 then
-    rtext = L["Feat in "] .. clockStr(st.featCooldown)
-  else rtext = ("%d / 100"):format(math.floor(rv + 0.5)) end
-  F.rage:Set(rv / 100, rtext)
+    if db.settings.rage.bank and rv >= ns.C.RAGE_BANK then rtext = L["Double Feat in "] .. clockStr(st.featCooldown)
+    elseif db.settings.rage.bank then rtext = L["Feat in "] .. clockStr(st.featCooldown) .. (" \194\183 Rage %d"):format(math.floor(rv))
+    else rtext = L["Feat in "] .. clockStr(st.featCooldown) end
+  else rtext = ("%d / %d"):format(math.floor(rv + 0.5), db.settings.rage.bank and ns.C.RAGE_BANK or 100) end
+  F.rage:Set(math.min(1, rv / 100), rtext)
 
   local rep = db.prog.rep or 0
   local idx, stand, nextMin = P.standing(rep)

@@ -6,7 +6,7 @@ ns.D = ns.D or {}
 ns.D.HEALTH = {
   pitch = {
     L["Every 30 minutes you sit, a 2-minute Walkabout comes due. Ignoring it never builds debt; it just grows, to 5 minutes at most."],
-    L["Playing fills Rage: a full bar every 90 minutes, faster from quests, dings, deaths and bosses, with repeats worth less. A full bar earns a Feat of Strength, at most one per 45 minutes, delivered with your next Walkabout."],
+    L["Playing fills Rage: a full bar every 90 minutes, faster from quests, dings, deaths and bosses, with repeats worth less. A full bar earns a Feat of Strength, at most one per 45 minutes, delivered with your next Walkabout. Extra Rage keeps banking up to 200, and at 200 your next Feat is a Double Feat with twice the exercises."],
     L["Feats pick the muscles you've rested longest, and no muscle group gets more than 1.5 sets in any hour or 6 in a day. Anything due in combat or a dungeon waits in your Totem until you're free."],
   },
   why = {

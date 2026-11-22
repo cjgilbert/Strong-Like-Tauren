@@ -11,7 +11,7 @@ Targets World of Warcraft: Forever (client 1.60.1, interface `16001`). Inspired 
 ## What it does
 
 - **Walkabouts every ~30 minutes.** Sit for half an hour and a short, 2-minute Walkabout comes due: a walk, some marching, calf raises or a stretch. Ignore it and nothing piles up; it only grows a little, to 5 minutes at most.
-- **Rage-powered Feats of Strength.** Playing fills your Rage bar. Quests, level-ups, deaths and boss kills fill it faster (repeats are worth less). A full bar earns a Feat: two exercises, with a floor and a cap so you never get a flood or a drought.
+- **Rage-powered Feats of Strength.** Playing fills your Rage bar. Quests, level-ups, deaths and boss kills fill it faster (repeats are worth less). A full bar earns a Feat: two exercises, with a floor and a cap so you never get a flood or a drought. Rage you earn while the Feat is on cooldown keeps banking up to 200, and at 200 the next Feat is an ENRAGED Double Feat with twice the exercises.
 - **Remembers your muscles.** Feats pick what you've rested longest, and no muscle group gets more than 1.5 sets in any hour or 6 in a day. No more 50 burpees because you died five times.
 - **Never interrupts a fight.** Anything due in combat, a boss encounter, a raid or a dungeon waits quietly in your Totem and shows up at a safe moment.
 - **Your workout, your rules.** Turn exercises on and off, add your own, filter for quiet / no floor / easy on wrists / the equipment you own, and share exercise lists with a short string.
@@ -21,13 +21,13 @@ Targets World of Warcraft: Forever (client 1.60.1, interface `16001`). Inspired 
 
 ## How it works
 
-Every 30 minutes you sit, a 2-minute **Walkabout** comes due. Ignoring it never builds debt; it just grows, to 5 minutes at most. Playing fills **Rage**: a full bar every 90 minutes, faster from quests, dings, deaths and bosses, with repeats worth less. A full bar earns a **Feat of Strength** (2 exercises), at most one per 45 minutes, delivered with your next Walkabout. Feats pick the muscles you've rested longest, and no muscle group gets more than 1.5 sets in any hour or 6 in a day. Anything due in combat or a dungeon waits in your **Totem** until you're free.
+Every 30 minutes you sit, a 2-minute **Walkabout** comes due. Ignoring it never builds debt; it just grows, to 5 minutes at most. Playing fills **Rage**: a full bar every 90 minutes, faster from quests, dings, deaths and bosses, with repeats worth less. A full bar earns a **Feat of Strength** (2 exercises), at most one per 45 minutes, delivered with your next Walkabout. Rage keeps building past a full bar, up to 200; at 200 the next Feat is a **Double Feat** (ENRAGED!) with twice the exercises (up to 6). Feats pick the muscles you've rested longest, and no muscle group gets more than 1.5 sets in any hour or 6 in a day. Anything due in combat or a dungeon waits in your **Totem** until you're free.
 
 | Per hour of play | Leveling (20 quests + ding) | Level 60 (2 quests) | Level 60 (no events) |
 |---|---|---|---|
 | Rage gained | ~170 (quests 53 + ding 50 + passive 67) | ~83 | 67 |
 | Walkabouts | 2 | 2 | 2 |
-| Feats of Strength | 1.33 (capped by the 45-minute cooldown) | ~0.8 | 0.67 (floor) |
+| Feats of Strength | 1.33 (capped by the 45-minute cooldown; extra Rage banks toward Double Feats) | ~0.8 | 0.67 (floor) |
 | Load on any one muscle group | at most 1.5 sets | at most 1.5 sets | at most 1.5 sets |
 
 Principles: time drives the schedule and events add flavor; your body state is remembered account-wide; fights are never interrupted; **nothing is ever owed** (missed work merges or expires, and partial effort counts); one click to done / partial / snooze / swap / skip with no guilt; and the real exercise name is always visible, with the pun as a bonus.

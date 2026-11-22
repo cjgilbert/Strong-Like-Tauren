@@ -21,7 +21,7 @@ function DB.newAccount(now)
     totals = { ex = {}, g = {}, walks = 0, walkSec = 0, feats = 0, credited = 0 },
     chars = {},
     charSeq = 0,
-    prog = { rep = 0, repDay = { day = "", n = 0 }, dailies = 0, streak = { cur = 0, best = 0, last = "" }, ach = {} },
+    prog = { rep = 0, repDay = { day = "", n = 0 }, dailies = 0, doubles = 0, enraged = 0, streak = { cur = 0, best = 0, last = "" }, ach = {} },
     errors = {},
   }
 end
@@ -74,7 +74,7 @@ function DB.repair(db, now)
   end
   if type(db.body.rage) ~= "table" then db.body.rage = ns.Rage.new(40) end
   U.merge(db.body.rage, fresh.body.rage)
-  db.body.rage.v = U.clamp(tonumber(db.body.rage.v) or 0, 0, 100)
+  db.body.rage.v = U.clamp(tonumber(db.body.rage.v) or 0, 0, C.RAGE_BANK)
   if type(db.body.paused) ~= "number" then db.body.paused = nil end
 
   local rows, keep = db.log.rows, {}

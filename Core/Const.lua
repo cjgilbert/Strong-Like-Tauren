@@ -6,7 +6,7 @@ local C = {}
 ns.C = C
 
 C.SCHEMA = 1
-C.VERSION = "0.1.5"
+C.VERSION = "0.1.6"
 C.MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
 C.ICON = C.MEDIA .. "SLT_Icon"
 C.LOGO = C.MEDIA .. "SLT_Logo"
@@ -64,6 +64,7 @@ C.RAGE_NAME = {
   quest = L["Quest turned in"], level = L["Level up"], death = L["Death"],
   boss = L["Boss kill"], zone = L["New zone"], hearth = L["Hearthstone"],
 }
+C.RAGE_BANK = 200   -- Rage banks up to this when settings.rage.bank is on (a Feat costs 100, a Double Feat 200)
 C.RAGE_DEDUPE = { death = 30 }  -- seconds: repeats inside this window are ignored
 
 -- Spells that count as "hearthing" (Hearthstone, Astral Recall).
@@ -88,6 +89,9 @@ C.NUDGE_SOUNDS = {
 }
 C.NUDGE_FALLBACK = "READY_CHECK"
 
+-- The ENRAGED! (Double Feat) fanfare: a war-horn style sound, first existing SOUNDKIT name wins.
+C.SOUNDS.enraged = { "RAID_WARNING", "UI_BATTLEGROUND_COUNTDOWN_FINISHED", "PVP_THROUGH_QUEUE", "READY_CHECK" }
+
 -- Settings schema: { path, kind, default, min, max, step } / { path, "enum", default, values }.
 C.OPTIONS = {
   { "enabled",          "bool", true },
@@ -98,6 +102,7 @@ C.OPTIONS = {
   { "rage.full",        "num",  90, 60, 180, 15 },
   { "rage.cd",          "num",  45, 30, 120, 5 },
   { "rage.start",       "num",  40, 0, 100, 5 },
+  { "rage.bank",        "bool", true },
   { "rage.w.quest",     "num",  10, 0, 50, 1 },
   { "rage.w.level",     "num",  50, 0, 100, 5 },
   { "rage.w.death",     "num",  35, 0, 100, 5 },

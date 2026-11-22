@@ -20,6 +20,12 @@ ns.D.QUIPS = {
     L["Feat of Strength unlocked. Lok'tar!"],
     L["Your Rage overflows. Channel it."],
   },
+  enraged = {
+    L["ENRAGED! Your Rage boiled over: 200 banked. This Feat hits twice as hard: double the exercises."],
+    L["The Earthmother can't contain you. Rage 200: a Double Feat of Strength awaits."],
+    L["Bloodlust! Banked Rage maxed out: twice the exercises, twice the glory."],
+    L["You are Enraged (200 Rage). Strong like TWO Tauren: Double Feat incoming."],
+  },
   flavor = {
     death  = L["The Spirit Healer demands penance."],
     boss   = L["Loot squats: the boss dropped your legs day."],
@@ -45,7 +51,10 @@ ns.D.QUIPS = {
     L["Time is money, friend! Snoozed %d min."],
     L["Five more minutes, mon. (Okay, %d.)"],
   },
-  rageCapped = { -- %s = time left
+  rageCapped = { -- %s = time left (banking on: the bar is full at 200)
+    L["Rage banked full. Double Feat in %s."],
+  },
+  rageCappedOff = { -- %s = time left (banking off: the bar is full at 100)
     L["Rage capped. Feat in %s."],
   },
   taxi = {

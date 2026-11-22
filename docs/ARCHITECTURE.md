@@ -32,14 +32,14 @@ ns.SelfTest ns.Sim`. Globals allowed: `StrongLikeTaurenDB`, `StrongLikeTaurenCha
   g {group=weight}, int, flags {jump,floor,wrist,seated}, needs, rest, pref (1-3), tags, walk, icon, on, builtin|custom,
   pct (override), primary`.
 - **Queue item** (`db.queue.items`, max one `W` and one `F`): `id, k ("W"|"F"), t, exp, min, rooted, bonus, merged,
-  flavor, slots`. **Slot**: `x (exercise id), a (planned amount), l (load), u (unit), p (tier %), sets, walk, why,
+  flavor, slots, double`. **Slot**: `x (exercise id), a (planned amount), l (load), u (unit), p (tier %), sets, walk, why,
   swaps, o (outcome once resolved), done (amount done)`.
 - **Log row** (`db.log.rows`): see header of `Logic/History.lua`. **Day** (`db.days[key]`): `ex, g, w{due,done,skip,cred},
   f{earn,done,skip,exp}, seatMax, play, dn, dq`. **Totals**: `db.totals{ex,g,walks,walkSec,feats,credited}`.
 - **Settings** (`db.settings`): paths from `C.OPTIONS` (e.g. `walk.every`, `filters.quiet`) plus `groupPct{group=pct}`,
   `totem{point,x,y,...}`. Validate with `C.validate(C.OPTION_BY_PATH[path], value)`.
-- **Body**: `db.body{acc, lastTick, paused (time the seated clock was paused, nil = running), rooted, skipUntil, earlyOffered, restDay, rage{v,lastFeatAt,src,ev,last}}`.
-- **Progress**: `db.prog{rep, repDay, dailies, streak{cur,best,last}, ach{id=time}}`; standings `C.STANDINGS`.
+- **Body**: `db.body{acc, lastTick, paused (time the seated clock was paused, nil = running), rooted, skipUntil, earlyOffered, restDay, rage{v,lastFeatAt,src,ev,last}}`. `Rage.v` is 0–100 per Feat and banks up to `C.RAGE_BANK` (200) when `settings.rage.bank` is on (else clamped at 100). `Rage.passive/event(..., bank)` take the bank flag; `Rage.spend(R, now, size)` removes `100*size` and keeps the remainder. A Double Feat (`S.tick`: v >= 200, banking on, no Feat pending) spends 200 and builds `min(6, 2*feat.slots)` slots; its queue item has `double = true`.
+- **Progress**: `db.prog{rep, repDay, dailies, doubles (completed Double Feats), enraged (earned), streak{cur,best,last}, ach{id=time}}`; standings `C.STANDINGS`.
 
 ## Scheduler (`Logic/Scheduler.lua`) — UI must go through `ns.Do`, not call it directly
 `tick(db,now,ctx,env)`, `moment(db,kind,now,ctx,env)` (kinds: taxi, rest, leave, combat, return, login),
@@ -57,7 +57,8 @@ Snooze end: `tick` notices an expired `nudge.snoozeUntil`, clears it and sets `n
 | Action | Fields | UI behaviour |
 |---|---|---|
 | `toast` | `w, f, moment` | `UI.Toast:Show(w, f, moment)`, sound `toast`, optional center text, refresh |
-| `due` / `rooted` / `expired` / `fresh` / `rageCapped` | item / n / item / – / left | refresh Totem (silent) |
+| `due` / `rooted` / `expired` / `fresh` / `rageCapped` | item / n / item / – / left, bank | refresh Totem (silent) |
+| `enraged` | `item, flavor` (pushed with `feat` for a new Double Feat; `db.prog.enraged` counts them) | chat line `D.QUIPS.enraged`; when the gate is open (`Scheduler.gate().may`) big red-orange center text `UI.Toast:Center` and `ns.sound("enraged")` (held while busy) |
 | `feat` | `item, flavor, merged` | refresh; chat line `D.QUIPS.flavor[flavor]` or a `D.QUIPS.feat` line |
 | `ask` | `dur` | `UI.Prompts:AskAway(dur)` → `ns.Do.answerAway(yes)` |
 | `credit` | `row, prevAcc, dur` | `UI.Prompts:Credit(action)` with "I was sitting" → `ns.Do.undoCredit(row, prevAcc)` |

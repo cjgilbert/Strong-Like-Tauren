@@ -298,6 +298,210 @@ case("seated: away 2 / 5 / 15 minutes", function()
   ok(db.body.acc > 0, "'I was sitting' restores the clock")
 end)
 
+-- Rage banking / Double Feats ---------------------------------------------------------------------------
+case("rage: banks past 100 up to 200 (passive and events) and not beyond", function()
+  local R = ns.Rage.new(0)
+  for _ = 1, 360 do ns.Rage.passive(R, 15, 90, true) end -- 90 minutes of 15 s ticks: exactly 100 despite float drift
+  eq(R.v, 100)
+  for _ = 1, 360 do ns.Rage.passive(R, 15, 90, true) end
+  eq(R.v, 200, "second 90 minutes reaches exactly 200")
+  ns.Rage.passive(R, 600, 90, true); eq(R.v, 200, "passive stops at 200")
+  local R2 = ns.Rage.new(150)
+  near(ns.Rage.event(R2, "boss", 100, { boss = 30 }, nil, true), 30); eq(R2.v, 180)
+  ns.Rage.event(R2, "level", 100, { level = 50 }, nil, true); eq(R2.v, 200, "events stop at 200")
+end)
+
+case("rage: spend leaves the remainder banked", function()
+  local R = ns.Rage.new(175)
+  ns.Rage.spend(R, 100, 1); eq(R.v, 75, "size 1 spends 100")
+  local R2 = ns.Rage.new(200)
+  ns.Rage.spend(R2, 100, 2); eq(R2.v, 0, "size 2 spends 200")
+  local R3 = ns.Rage.new(150)
+  ns.Rage.spend(R3, 100, 2); eq(R3.v, 0, "never below 0")
+  eq(R3.lastFeatAt, 100)
+  local R4 = ns.Rage.new(100)
+  ns.Rage.spend(R4, 100); eq(R4.v, 0, "default size is 1")
+end)
+
+case("rage: banking off clamps at 100, including an existing higher value", function()
+  local R = ns.Rage.new(0)
+  ns.Rage.passive(R, 200 * 60, 90, false); eq(R.v, 100)
+  local R2 = ns.Rage.new(180)
+  ns.Rage.passive(R2, 15, 90, false); eq(R2.v, 100, "existing 180 clamps down")
+  local R3 = ns.Rage.new(180)
+  ns.Rage.event(R3, "boss", 100, { boss = 30 }, nil, false); eq(R3.v, 100)
+  local db, env, now = T.world()
+  db.settings.rage.bank = false
+  db.body.rage.v = 180; db.body.rage.lastFeatAt = now -- cooldown running
+  local acts = ns.Scheduler.tick(db, now + 15, idle(), env)
+  eq(db.body.rage.v, 100, "tick clamps")
+  local cap = findAct(acts, "rageCapped")
+  ok(cap and not cap.bank, "capped note at 100 with banking off")
+end)
+
+case("rage: banked Rage makes a Double Feat only at 200 with nothing pending", function()
+  local db, env, now = T.world()
+  db.body.rage.v = 150
+  local acts = ns.Scheduler.tick(db, now, idle(), env)
+  local F = ns.Queue.get(db.queue, "F")
+  ok(F and not F.double and #F.slots == 2, "150 gives a normal Feat")
+  ok(findAct(acts, "feat") and not findAct(acts, "enraged"), "no enraged action for a normal Feat")
+  near(db.body.rage.v, 50, 0.1, "spent only 100")
+  -- merge: the Feat is still pending, a new earn only adds +25% and spends 100
+  local t2 = now + 45 * 60
+  run(db, env, now + 15, t2 - 15)
+  db.body.rage.v = 200
+  acts = ns.Scheduler.tick(db, t2, idle(), env)
+  F = ns.Queue.get(db.queue, "F")
+  ok(F.merged and not F.double and #F.slots == 2, "pending Feat merges, no Double")
+  eq(F.bonus, 0.25)
+  near(db.body.rage.v, 100, 0.1, "merge spent only 100, rest stays banked")
+  ok(not findAct(acts, "enraged"), "no enraged action on a merge")
+  eq(db.prog.enraged, 0)
+end)
+
+case("rage: Double Feat has 2 x slots exercises on distinct muscle groups and fires enraged once", function()
+  local db, env, now = T.world(7)
+  db.body.rage.v = 200
+  local acts = ns.Scheduler.tick(db, now, idle(), env)
+  local F = ns.Queue.get(db.queue, "F")
+  ok(F and F.double, "double flag")
+  eq(#F.slots, 4)
+  local prim = {}
+  for _, sl in ipairs(F.slots) do
+    local p = env.byId[sl.x].primary
+    ok(not prim[p], "distinct primary " .. p); prim[p] = true
+  end
+  local e = findAct(acts, "enraged")
+  ok(e and e.item == F, "enraged action for the Double Feat")
+  eq(db.prog.enraged, 1)
+  near(db.body.rage.v, 0, 0.1, "spent 200")
+  local db2, env2, n2 = T.world(8)
+  db2.settings.feat.slots = 3
+  db2.body.rage.v = 200
+  ns.Scheduler.tick(db2, n2, idle(), env2)
+  ok(#ns.Queue.get(db2.queue, "F").slots <= 6, "capped at 6")
+  local db3, env3, n3 = T.world(9)
+  db3.settings.rage.bank = false
+  db3.body.rage.v = 200
+  ns.Scheduler.tick(db3, n3, idle(), env3)
+  ok(not ns.Queue.get(db3.queue, "F").double, "banking off: never a Double")
+end)
+
+case("rage: rageCapped fires once when the bank is full during the cooldown", function()
+  local db, env, now = T.world()
+  db.body.rage.v = 100
+  ns.Scheduler.tick(db, now, idle(), env) -- Feat earned, cooldown starts
+  local n = 0
+  db.body.rage.v = 150
+  for t = now + 15, now + 600, 15 do
+    for _, a in ipairs(ns.Scheduler.tick(db, t, idle(), env)) do if a.t == "rageCapped" then n = n + 1 end end
+  end
+  eq(n, 0, "not capped at 150")
+  db.body.rage.v = 200
+  for t = now + 615, now + 1200, 15 do
+    for _, a in ipairs(ns.Scheduler.tick(db, t, idle(), env)) do
+      if a.t == "rageCapped" then n = n + 1; ok(a.bank and a.left > 0) end
+    end
+  end
+  eq(n, 1, "once at 200")
+end)
+
+case("rage: steady ~175 Rage per cycle eventually earns a 4-slot Double Feat, muscle caps intact", function()
+  local db, env, now = T.world(11)
+  db.body.rage.v = 0
+  local cycle, doubles, normals = 45 * 60, 0, 0
+  local function finishAll(t)
+    for _, it in ipairs({ unpack(db.queue.items) }) do
+      for i, sl in ipairs(it.slots) do
+        if not sl.o then ns.Scheduler.complete(db, it.id, i, nil, t, env) end
+      end
+    end
+  end
+  local sizes = {}
+  local floor = {} -- the "nothing fits" floor slot (a Feat always has one exercise) is the one documented cap exception
+  for c = 0, 11 do
+    local start = now + c * cycle
+    db.body.rage.v = math.min(200, db.body.rage.v + 125) -- events; passive adds ~50 over the cycle
+    for t = start, start + cycle - 15, 15 do
+      db.nudge.ignored = 0
+      for _, a in ipairs(ns.Scheduler.tick(db, t, idle(), env)) do
+        if a.t == "feat" then
+          for _, sl in ipairs(a.item.slots) do
+            if sl.why == "everything else is resting" then floor[a.item.id .. "|" .. sl.x] = true end
+          end
+          if a.item.double then
+            doubles = doubles + 1
+            sizes[#sizes + 1] = #a.item.slots
+            local prim = {}
+            for _, sl in ipairs(a.item.slots) do
+              local p = env.byId[sl.x].primary
+              ok(not prim[p], "distinct primaries in the Double Feat")
+              prim[p] = true
+            end
+          else normals = normals + 1 end
+        end
+      end
+      finishAll(t)
+    end
+  end
+  ok(normals >= 2, "normal Feats first (" .. normals .. ")")
+  ok(doubles >= 1, "a Double Feat within a few cycles (" .. doubles .. ")")
+  eq(sizes[1], 4, "the Double Feat has 4 slots")
+  -- per-muscle caps over the whole run: any rolling hour <= 1.5 sets, any day <= 6
+  local list, byDay = {}, {}
+  for _, r in ipairs(db.log.rows) do
+    if (r.o == "done" or r.o == "part") and r.g and r.l and not floor[tostring(r.q) .. "|" .. r.x] then
+      list[#list + 1] = r
+    end
+  end
+  table.sort(list, function(a, b) return a.t < b.t end)
+  for i, r in ipairs(list) do
+    local sum = {}
+    for j = i, 1, -1 do
+      local q = list[j]
+      if q.t <= r.t - 3600 then break end
+      for g, w in pairs(q.g) do sum[g] = (sum[g] or 0) + q.l * w end
+    end
+    for g, v in pairs(sum) do
+      if C.CAPPED[g] then ok(v <= 1.55, ("hour cap %s %.2f"):format(g, v)) end
+    end
+    byDay[r.d] = byDay[r.d] or {}
+    if r.s == "feat" then -- the Picker caps Feat load; Walkabouts (light marching) are timed, not capped
+      for g, w in pairs(r.g) do byDay[r.d][g] = (byDay[r.d][g] or 0) + r.l * w end
+    end
+  end
+  for d, gs in pairs(byDay) do
+    for g, v in pairs(gs) do if C.CAPPED[g] then ok(v <= 6.05, ("day cap %s %s %.2f"):format(g, d, v)) end end
+  end
+end)
+
+case("progress: Unbridled Rage fires on the first completed Double Feat only", function()
+  local db, env, now = T.world(5)
+  db.body.rage.v = 100
+  ns.Scheduler.tick(db, now, idle(), env)
+  local F = ns.Queue.get(db.queue, "F")
+  local fired
+  for i = 1, #F.slots do
+    for _, a in ipairs(ns.Scheduler.complete(db, F.id, i, nil, now + 60, env)) do
+      if a.t == "achieve" and a.a.id == "double_1" then fired = true end
+    end
+  end
+  ok(not fired and not db.prog.ach.double_1, "a normal Feat does not count")
+  local t2 = now + 45 * 60
+  db.body.rage.v = 200
+  ns.Scheduler.tick(db, t2, idle(), env)
+  F = ns.Queue.get(db.queue, "F")
+  ok(F and F.double)
+  for i = 1, #F.slots do
+    for _, a in ipairs(ns.Scheduler.complete(db, F.id, i, (i == 1) and 1 or nil, t2 + 60, env)) do
+      if a.t == "achieve" and a.a.id == "double_1" then fired = true end
+    end
+  end
+  ok(fired and db.prog.ach.double_1, "fires on the first Double Feat (a partial still counts)")
+  eq(db.prog.doubles, 1)
+end)
+
 -- Picker -----------------------------------------------------------------------------------------------
 case("picker: every filter and equipment combination yields a Walkabout and a Feat", function()
   local equipSets = { {}, { chair = true, wall = true, stairs = true, bar = true, band = true, dumbbells = true } }

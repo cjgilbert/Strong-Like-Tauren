@@ -18,7 +18,7 @@ function M:ShowTooltip(owner, anchor)
     local st = ns.Scheduler.status(ns.db, ns.now(), ns.ctx)
     GameTooltip:AddDoubleLine("Seated", U.fmtClock(st.seated), 0.95, 0.9, 0.8, 1, 1, 1)
     local rage = st.restDay and "Rest day"
-      or ((st.rage >= 100 and st.featCooldown > 0) and ("Feat in " .. U.fmtDuration(st.featCooldown))
+      or ((st.rage >= 100 and st.featCooldown > 0) and (((ns.db.settings.rage.bank and st.rage >= C.RAGE_BANK) and "Double Feat in " or "Feat in ") .. U.fmtDuration(st.featCooldown))
       or tostring(math.floor(st.rage)))
     GameTooltip:AddDoubleLine("Rage", rage, 0.95, 0.9, 0.8, 1, 1, 1)
     local nxt

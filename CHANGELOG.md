@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6
+
+- New: extra Rage now banks up to 200 instead of going to waste; at 200 your next Feat is a Double Feat with twice the exercises (Settings: Bank extra Rage).
+- New: a Double Feat is an ENRAGED! moment: a red-orange center banner, a war-horn sound, a red-glow reminder titled "ENRAGED! Double Feat of Strength", and the achievements Unbridled Rage and Berserker.
+
 ## 0.1.5
 
 - Fixed: reminders could stop appearing for the rest of a session after a cutscene, boss fight or loading screen whose end the game didn't report.

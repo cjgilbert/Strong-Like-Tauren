@@ -12,6 +12,8 @@ local PAD, ICON = 14, 44
 local TEXTW = WIDTH - PAD - ICON - 10 - PAD
 local frame, msgFrame, centerFrame
 local cur = { w = nil, f = nil, sample = false }
+local ENRAGED_COL = { 1.0, 0.35, 0.08 } -- red-orange: the Double Feat glow, subtitle and center text
+local ENRAGED_SUB = "Rage overflowed to 200 \226\128\148 twice the exercises this time."
 local anim = { t = 1, glow = 0 }
 
 -- Used by the Message toast: under the Totem when it is up.
@@ -89,10 +91,17 @@ local function build()
   frame.icon:SetTexture(C.ICON)
   local okT, title = pcall(th.Text, frame, "GameFontNormalHuge", "", th.C.gold)
   frame.title = okT and title or th.Text(frame, "GameFontNormalLarge", "", th.C.gold)
+  frame.titleFont = okT and "GameFontNormalHuge" or "GameFontNormalLarge"
   frame.title:SetPoint("TOPLEFT", PAD + ICON + 10, -PAD)
   frame.title:SetWidth(TEXTW - 14) -- top-right corner is reserved for the close X
   frame.title:SetHeight(26)
   frame.title:SetJustifyV("TOP")
+  -- one-line (wrapping) subtitle, shown above the exercise list for a Double Feat only
+  frame.sub = th.Text(frame, "GameFontNormalSmall", "", ENRAGED_COL)
+  frame.sub:SetWidth(TEXTW)
+  frame.sub:SetWordWrap(true)
+  frame.sub:SetJustifyV("TOP")
+  frame.sub:Hide()
   frame.text = th.Text(frame, "GameFontHighlight", "", th.C.text)
   frame.text:SetWidth(TEXTW)
   frame.text:SetWordWrap(true) -- wraps instead of truncating; the height comes from GetStringHeight
@@ -156,7 +165,7 @@ local function build()
   end)
 end
 
-local function center(text)
+local function center(text, r, g, b)
   if not centerFrame then
     centerFrame = CreateFrame("Frame", "StrongLikeTaurenCenterText", UIParent)
     centerFrame:SetSize(600, 40)
@@ -166,7 +175,6 @@ local function center(text)
     fs:SetAllPoints()
     local font, _, flags = fs:GetFont()
     if font then pcall(fs.SetFont, fs, font, 26, flags) end
-    fs:SetTextColor(0.83, 0.66, 0.32)
     centerFrame.fs = fs
     centerFrame:SetScript("OnUpdate", function(self, el)
       self.age = (self.age or 0) + el
@@ -174,6 +182,8 @@ local function center(text)
     end)
     centerFrame:Hide()
   end
+  centerFrame.color = { r or 0.83, g or 0.66, b or 0.32 }
+  centerFrame.fs:SetTextColor(centerFrame.color[1], centerFrame.color[2], centerFrame.color[3])
   centerFrame.fs:SetText(text)
   centerFrame.age = 0
   centerFrame:SetAlpha(1)
@@ -181,8 +191,9 @@ local function center(text)
 end
 
 local function titleFor(w, f)
-  if w and f then return "Walkabout & Feat of Strength!" end
-  if f then return "Feat of Strength!" end
+  local dbl = f and f.double
+  if w and f then return dbl and "Walkabout & ENRAGED Double Feat!" or "Walkabout & Feat of Strength!" end
+  if f then return dbl and "ENRAGED! Double Feat of Strength" or "Feat of Strength!" end
   return "Walkabout time!"
 end
 
@@ -190,9 +201,22 @@ end
 local function render()
   local ls = cur.sample and { "Kodo Squats 15", "Mulgore Stroll 2:00" } or pending(liveItems())
   frame.text:SetText(table.concat(ls, " \194\183 "))
+  -- Double Feat: a subtitle line sits above the list (wraps, never truncated) and pushes it down
+  local _, F = liveItems()
+  local subH = 0
+  frame.sub:ClearAllPoints()
+  if not cur.sample and F and F.double then
+    frame.sub:SetText(ENRAGED_SUB)
+    frame.sub:SetPoint("TOPLEFT", frame, "TOPLEFT", PAD + ICON + 10, -(PAD + 30))
+    frame.sub:Show()
+    subH = math.max(12, frame.sub:GetStringHeight() or 0) + 4
+  else
+    frame.sub:SetText("")
+    frame.sub:Hide()
+  end
   frame.text:ClearAllPoints()
-  frame.text:SetPoint("TOPLEFT", frame, "TOPLEFT", PAD + ICON + 10, -(PAD + 30))
-  frame:SetHeight(math.max(110, PAD + 30 + math.max(14, frame.text:GetStringHeight() or 0) + 10 + 24 + 12))
+  frame.text:SetPoint("TOPLEFT", frame, "TOPLEFT", PAD + ICON + 10, -(PAD + 30 + subH))
+  frame:SetHeight(math.max(110, PAD + 30 + subH + math.max(14, frame.text:GetStringHeight() or 0) + 10 + 24 + 12))
   return #ls
 end
 
@@ -203,13 +227,19 @@ function Ts:Refresh()
   if render() == 0 then self:Hide() end
 end
 
-local function present(title)
+local function present(title, enraged)
+  local th = ns.UI.Theme
   frame:ClearAllPoints()
   frame:SetPoint("TOP", UIParent, "TOP", 0, -180)
   frame.title:SetText(title)
   frame.expires = GetTime() + AUTOHIDE
   anim.t = 0
-  anim.glow = 2.5
+  anim.glow = enraged and 4.5 or 2.5 -- a few more pulses for ENRAGED
+  local gc = enraged and ENRAGED_COL or th.C.gold
+  frame.glowKind = enraged and "enraged" or "gold"
+  frame.glow:SetVertexColor(gc[1], gc[2], gc[3], 1)
+  pcall(frame.title.SetFontObject, frame.title, enraged and "GameFontNormalLarge" or frame.titleFont)
+  frame.title:SetTextColor(enraged and 1 or th.C.gold[1], enraged and 0.55 or th.C.gold[2], enraged and 0.2 or th.C.gold[3])
   frame:SetAlpha(0)
   pcall(frame.SetScale, frame, 0.9)
   frame:Show()
@@ -225,9 +255,20 @@ function Ts:Show(w, f, moment)
   cur.w, cur.f, cur.sample = w and w.id, f and f.id, false
   local title = titleFor(w, f)
   render()
-  present(title)
-  if ns.db.settings.nudge.center then center(title) end
+  local dbl = f and f.double and true or false
+  present(title, dbl)
+  if ns.db.settings.nudge.center then
+    if dbl then center(title, ENRAGED_COL[1], ENRAGED_COL[2], ENRAGED_COL[3]) else center(title) end
+  end
 end
+
+-- Big center-screen text (also used by the ENRAGED! moment, which shows it regardless of the center-text setting).
+function Ts:Center(text, r, g, b)
+  center(text, r, g, b)
+end
+
+-- The ENRAGED! color, for the chat/center callers.
+Ts.ENRAGED_COL = ENRAGED_COL
 
 -- Settings "Test": a sample reminder that does not depend on the queue.
 function Ts:Sample()

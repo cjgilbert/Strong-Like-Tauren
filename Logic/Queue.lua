@@ -59,7 +59,8 @@ function Queue.upsertWalk(Q, now, minutes, rooted, makeSlot)
 end
 
 -- Adds a Feat, or merges into the pending one: +25% once (total bonus capped at +50%) and a fresh expiry.
-function Queue.addFeat(Q, now, flavor, bonus, expireH, makeSlots, rescale)
+-- double = a Double Feat (twice the exercises, built by makeSlots); a merge into a pending Feat never makes one.
+function Queue.addFeat(Q, now, flavor, bonus, expireH, makeSlots, rescale, double)
   local it = Queue.get(Q, "F")
   if it then
     local merged = false
@@ -79,7 +80,7 @@ function Queue.addFeat(Q, now, flavor, bonus, expireH, makeSlots, rescale)
   end
   bonus = math.min(bonus or 0, 0.5)
   it = { id = Queue.newId(Q), k = "F", t = now, exp = now + expireH * 3600, bonus = bonus, flavor = flavor,
-         slots = makeSlots(bonus, flavor) }
+         slots = makeSlots(bonus, flavor), double = double and true or nil }
   Q.items[#Q.items + 1] = it
   return it, true, false
 end

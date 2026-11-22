@@ -108,6 +108,12 @@ function Settings.build(parent)
   step(L["Minutes of play to fill Rage"], "rage.full", fmtMin)
   step(L["Minimum gap between Feats"], "rage.cd", fmtMin)
   step(L["Exercises per Feat"], "feat.slots", fmtInt)
+  do
+    local bankChk = Kit.settingCheck(content, list, L["Bank extra Rage (Double Feats)"], "rage.bank")
+    flow:add(bankChk, 24)
+    pcall(UI.Theme.Tooltip, bankChk, { L["Bank extra Rage (Double Feats)"],
+      L["Rage keeps building past a full bar, up to 200. At 200 your next Feat is a Double Feat with twice the exercises."] })
+  end
   step(L["Feat expires after (hours)"], "feat.expireH", fmtInt)
   seg({ { "walk", L["With my next Walkabout"] }, { "asap", L["As soon as it is ready"] } }, "feat.delivery")
 

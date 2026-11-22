@@ -116,6 +116,22 @@ function H.feat(a)
   if line and line ~= "" then ns.say(line) end
 end
 
+-- A Double Feat was just earned. The chat line always prints; the big banner and the war-horn only when the game is not
+-- busy (the reminder toast for the Feat follows at the next safe moment anyway).
+function H.enraged(a)
+  local line = ns.quip("enraged")
+  if line ~= "" then ns.say(line) end
+  if not (ns.db and ns.ctx) then return end
+  local g = ns.Scheduler.gate(ns.db, ns.now(), ns.ctx)
+  if g.quiet or not g.may then return end
+  local T = ns.UI.Toast
+  if T and T.Center then
+    local c = T.ENRAGED_COL or { 1, 0.35, 0.08 }
+    T:Center("ENRAGED!", c[1], c[2], c[3])
+  end
+  ns.sound("enraged")
+end
+
 function H.ask(a)
   if ns.UI.Prompts then ns.UI.Prompts:AskAway(a.dur) end
 end

@@ -118,7 +118,7 @@ local SWAP_WHY = {
   gone = "That one is gone.",
 }
 
-local amountText
+local amountText, itemLabel
 
 local function buildRow(i)
   local th = theme()
@@ -171,13 +171,18 @@ local function buildRow(i)
     if not d then return nil end
     local lines = { d.pun or d.name }
     if d.pun and d.pun ~= d.name then lines[#lines + 1] = d.name end
-    lines[#lines + 1] = (r.item and r.item.k == "W" and "Walkabout" or "Feat of Strength") .. " \194\183 " .. amountText(d, r.slot)
+    lines[#lines + 1] = itemLabel(r.item) .. " \194\183 " .. amountText(d, r.slot)
     if d.desc then lines[#lines + 1] = d.desc end
     if r.slot and r.slot.why then lines[#lines + 1] = r.slot.why end
     return lines
   end)
   r:Hide()
   return r
+end
+
+function itemLabel(item)
+  if item and item.k == "W" then return "Walkabout" end
+  return (item and item.double) and "Double Feat" or "Feat of Strength"
 end
 
 function amountText(def, slot)
@@ -196,7 +201,7 @@ local function layoutRow(r, i, e)
   r.name:SetText(def and (def.pun or def.name) or e.slot.x)
   local real = def and def.pun and def.pun ~= def.name and def.name or nil
   local amt = amountText(def, e.slot)
-  r.kind:SetText(real and (real .. " \194\183 " .. amt) or ((e.item.k == "W" and "Walkabout" or "Feat of Strength") .. " \194\183 " .. amt))
+  r.kind:SetText(real and (real .. " \194\183 " .. amt) or (itemLabel(e.item) .. " \194\183 " .. amt))
   local timed = (def and def.kind == "s") or e.slot.walk
   local x = 4
   for _, b in ipairs(r.btnList) do
@@ -256,11 +261,21 @@ function Tm:UpdateHeader()
     frame.pause.icon:SetTexture(st.paused and PLAY_ICON or PAUSE_ICON)
   end
 
+  -- Rage bar: the 0-100 fill, plus a lighter overflow segment from the left for banked Rage (100-200). The text always
+  -- says it too (never color alone). Fixed sizes: only the segment's width changes.
+  local bank = ns.db.settings.rage.bank
   frame.rage:SetValue(math.min(1, st.rage / 100))
+  local over = bank and math.max(0, math.min(1, (st.rage - 100) / 100)) or 0
+  frame.rage.over:SetWidth(math.max(0.001, (frame.rage:GetWidth() or 0) * over))
+  frame.rage.over:SetShown(over > 0)
   local rtxt
+  local rg = math.floor(st.rage)
   if st.restDay then rtxt = "Rest day"
-  elseif st.rage >= 100 and st.featCooldown > 0 then rtxt = "Feat in " .. U.fmtDuration(st.featCooldown)
-  else rtxt = "Rage " .. math.floor(st.rage) end
+  elseif st.rage >= 100 and st.featCooldown > 0 then
+    if bank and st.rage >= C.RAGE_BANK then rtxt = "Double Feat in " .. U.fmtDuration(st.featCooldown)
+    elseif bank then rtxt = "Feat in " .. U.fmtDuration(st.featCooldown) .. " \194\183 Rage " .. rg
+    else rtxt = "Feat in " .. U.fmtDuration(st.featCooldown) end
+  else rtxt = "Rage " .. rg end
   frame.rage.text:SetText(rtxt)
 
   -- The rep bar shows reputation only: fixed color, never an exercise or buff label.
@@ -370,6 +385,13 @@ function Tm:Init()
   frame.gotUp:SetPoint("TOPLEFT", frame.pause, "TOPRIGHT", 2, 0)
   frame.rage = th.Bar(frame, WIDTH - 46 - 30, 12, th.C.rage)
   frame.rage:SetPoint("TOPLEFT", 48, -24)
+  frame.rage.over = frame.rage:CreateTexture(nil, "ARTWORK", nil, 2)
+  frame.rage.over:SetTexture(th.WHITE)
+  frame.rage.over:SetVertexColor(1, 0.55, 0.2, 0.9) -- lighter orange over the red fill
+  frame.rage.over:SetPoint("TOPLEFT", frame.rage, "TOPLEFT", 0, 0)
+  frame.rage.over:SetPoint("BOTTOMLEFT", frame.rage, "BOTTOMLEFT", 0, 0)
+  frame.rage.over:SetWidth(0.001)
+  frame.rage.over:Hide()
   frame.rep = th.Bar(frame, WIDTH - 46 - 30, 12, th.C.gold)
   frame.rep:SetPoint("TOPLEFT", 48, -38)
 

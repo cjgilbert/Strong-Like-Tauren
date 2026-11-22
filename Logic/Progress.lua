@@ -89,6 +89,7 @@ local function met(db, a)
   elseif a.type == "streak" then return (P.streak.best or 0) >= a.n
   elseif a.type == "rep" then return (P.rep or 0) >= a.n
   elseif a.type == "dailies" then return (P.dailies or 0) >= a.n
+  elseif a.type == "doubles" then return (P.doubles or 0) >= a.n
   elseif a.type == "distinct" then
     local n = 0
     for _, v in pairs(T.ex) do if v > 0 then n = n + 1 end end
@@ -117,6 +118,7 @@ function Progress.achievementProgress(db, a)
   elseif a.type == "streak" then return P.streak.best or 0
   elseif a.type == "rep" then return P.rep or 0
   elseif a.type == "dailies" then return P.dailies or 0
+  elseif a.type == "doubles" then return P.doubles or 0
   elseif a.type == "distinct" then
     local n = 0
     for _, v in pairs(T.ex) do if v > 0 then n = n + 1 end end

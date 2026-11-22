@@ -683,6 +683,111 @@ do
   _G.GetServerTime = realServerTime
 end
 
+-- Rage banking and the ENRAGED! Double Feat -----------------------------------------------------------------------
+print("-- banked Rage, Double Feat toast and ENRAGED")
+do
+  boot()
+  setKit()
+  local function rageText() return ns.UI.Totem.frame.rage.text._text or "" end
+  ns.UI.Totem:Show()
+  local now = ns.now()
+  ns.db.body.rage.lastFeatAt = now -- cooldown running
+  ns.db.body.rage.v = 60
+  ns.UI.Totem:Refresh()
+  check(rageText() == "Rage 60", "totem: below 100 says 'Rage 60' (" .. rageText() .. ")")
+  check(not ns.UI.Totem.frame.rage.over._shown, "totem: no overflow segment below 100")
+  ns.db.body.rage.v = 175
+  ns.UI.Totem:Refresh()
+  check(rageText():find("^Feat in %S+ \194\183 Rage 175$") ~= nil, "totem: 'Feat in ... \194\183 Rage 175' (" .. rageText() .. ")")
+  check(ns.UI.Totem.frame.rage.over._shown, "totem: overflow segment shown for 175")
+  ns.db.body.rage.v = 200
+  ns.UI.Totem:Refresh()
+  check(rageText():find("^Double Feat in %S+$") ~= nil, "totem: 'Double Feat in ...' at 200 (" .. rageText() .. ")")
+  ns.db.settings.rage.bank = false
+  ns.db.body.rage.v = 100
+  ns.UI.Totem:Refresh()
+  check(rageText():find("^Feat in %S+$") ~= nil and not ns.UI.Totem.frame.rage.over._shown,
+    "totem: banking off shows plain 'Feat in ...' (" .. rageText() .. ")")
+  ns.db.settings.rage.bank = true
+
+  -- Double Feat item labels and toast
+  local Q = ns.db.queue
+  local F = { id = ns.Queue.newId(Q), k = "F", t = now, exp = now + 86400, bonus = 0, flavor = "quest", double = true,
+              slots = { slot("squat", 15), slot("twist", 20), slot("pushup", 10), slot("plank", 30, { }) } }
+  Q.items[#Q.items + 1] = F
+  local oldPun = ns.env.byId.squat.pun
+  ns.env.byId.squat.pun = nil -- the row only shows the Feat label when there is no separate pun line
+  ns.UI.Totem:Show(); ns.UI.refreshAll()
+  local sawDouble = false
+  for _, r in ipairs(visibleRows()) do
+    if r.kind and (r.kind._text or ""):find("Double Feat", 1, true) then sawDouble = true end
+  end
+  ns.env.byId.squat.pun = oldPun
+  check(sawDouble, "totem: rows of a Double Feat are labelled 'Double Feat'")
+
+  if _G.StrongLikeTaurenToast then _G.StrongLikeTaurenToast._shown = false end
+  ns.UI.Toast:Show(nil, F, "tick")
+  local ts = _G.StrongLikeTaurenToast
+  check(ts.title._text == "ENRAGED! Double Feat of Strength", "toast: Double Feat title (" .. tostring(ts.title._text) .. ")")
+  check(ts.sub._shown and (ts.sub._text or ""):find("twice the exercises", 1, true), "toast: subtitle line for a Double Feat")
+  check(ts.glowKind == "enraged", "toast: red-orange glow for a Double Feat")
+  check(toastSlotCount() == 4, "toast: lists all 4 exercises (" .. toastSlotCount() .. ")")
+  local W = addWalk()
+  ns.UI.Toast:Show(W, F, "tick")
+  check(ts.title._text == "Walkabout & ENRAGED Double Feat!", "toast: Walkabout & Double Feat title (" .. tostring(ts.title._text) .. ")")
+  ns.Queue.remove(Q, W.id)
+  ns.Queue.remove(Q, F.id)
+  local F1 = addFeat()
+  ns.UI.Toast:Show(nil, F1, "tick")
+  check(ts.title._text == "Feat of Strength!" and not ts.sub._shown and ts.glowKind == "gold",
+    "toast: a normal Feat keeps the gold glow, title and no subtitle")
+  ns.Queue.remove(Q, F1.id)
+
+  -- the ENRAGED! moment: chat line always; center text and sound only when the game is not busy
+  local center = function() return _G.StrongLikeTaurenCenterText end
+  ns.db.settings.nudge.center = false
+  ns.db.settings.nudge.sound = true
+  local D = { id = 99, k = "F", double = true, slots = {} }
+  stub.chat = {}
+  plays, lastSound = 0, nil
+  ns.ctx.settleUntil = 0
+  ns.dispatch({ { t = "enraged", item = D } })
+  check(#stub.chat >= 1, "enraged: prints an explanatory chat line")
+  check(center() and center()._shown and center().fs._text == "ENRAGED!", "enraged: center text even with center text off")
+  check(center().color and center().color[1] >= 0.9 and center().color[3] <= 0.2, "enraged: red-orange center text")
+  check(plays == 1 and lastSound == ids.RAID_WARNING, "enraged: war-horn sound (RAID_WARNING)")
+  center()._shown = false
+  center().fs._text = ""
+  ns.ctx.combat = true
+  stub.chat = {}
+  plays = 0
+  ns.dispatch({ { t = "enraged", item = D } })
+  check(#stub.chat >= 1, "enraged in combat: chat line still printed")
+  check(not center()._shown and center().fs._text == "" and plays == 0, "enraged in combat: no center text, no sound")
+  ns.ctx.combat = false
+  ns.db.settings.nudge.sound = false
+  plays = 0
+  ns.dispatch({ { t = "enraged", item = D } })
+  check(plays == 0 and center()._shown, "enraged with sounds off: banner but no sound")
+  ns.db.settings.nudge.sound = true
+  _G.SOUNDKIT.RAID_WARNING = nil
+  plays, lastSound = 0, nil
+  ns.dispatch({ { t = "enraged", item = D } })
+  check(plays == 1 and lastSound == ids.READY_CHECK, "enraged: falls back to READY_CHECK when nothing better exists")
+  setKit()
+
+  -- Scheduler -> dispatch: only a Double Feat enrages
+  boot(); setKit()
+  stub.chat = {}
+  ns.db.body.rage.v = 100
+  ns.db.body.rage.lastFeatAt = 0
+  ns.ctx.settleUntil = 0
+  ns.dispatch(ns.Scheduler.tick(ns.db, ns.now() + 15, ns.ctx, ns.env))
+  check(ns.Queue.get(ns.db.queue, "F") and not ns.Queue.get(ns.db.queue, "F").double, "normal Feat earned at 100")
+  check(not (center() and center()._shown and center().fs._text == "ENRAGED!" and ns.db.prog.enraged > 0),
+    "no ENRAGED! for a normal Feat")
+end
+
 print(("ui-tests: %d passed, %d failed"):format(passed, failed))
 print(failed == 0 and "UI TESTS OK" or ("UI TESTS: " .. failed .. " failure(s)"))
 os.exit(failed == 0 and 0 or 1)

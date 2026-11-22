@@ -173,20 +173,23 @@ specs.A = {
   end)(),
   expect = function(rep, check)
     check("6 Walkabouts completed", rep.walks == 6, tostring(rep.walks))
-    check("Feats earned near 40/100/160", matches(rep.feats, { 40, 100, 160 }, 3), fmt(rep.feats))
-    local allLevel = #rep.featFlavors == 3
-    for _, f in ipairs(rep.featFlavors) do if f ~= "level" then allLevel = false end end
-    check("every Feat has the level flavor", allLevel, table.concat(rep.featFlavors, ","))
+    -- Rage now banks past 100, so after the ding Feat at 40 every cooldown end finds a full bar: 40/85/130/175.
+    check("Feats earned near 40/85/130/175", matches(rep.feats, { 40, 85, 130, 175 }, 3), fmt(rep.feats))
+    local flav = {}
+    for i, f in ipairs(rep.featFlavors) do flav[i] = f or "-" end
+    check("Feats flavored level, none, level, level", #flav == 4 and flav[1] == "level" and flav[2] == "-"
+      and flav[3] == "level" and flav[4] == "level", table.concat(flav, ","))
     check("6 popups at 30,60..180", matches(rep.popups, range(30, 180, 30), 0.6), fmt(rep.popups))
     local withFeat, bonusOk = {}, true
     for _, t in ipairs(rep.toasts) do
       if t.f then
         withFeat[#withFeat + 1] = t.min
-        if math.abs((t.f.bonus or 0) - 0.25) > 1e-9 then bonusOk = false end
+        local want = (t.f.flavor == "level") and 0.25 or 0
+        if math.abs((t.f.bonus or 0) - want) > 1e-9 then bonusOk = false end
       end
     end
-    check("Feats ride along with Walkabouts at 60/120/180", matches(withFeat, { 60, 120, 180 }, 0.6), fmt(withFeat))
-    check("level Feats carry +25%", bonusOk)
+    check("Feats ride along with Walkabouts at 60/90/150/180", matches(withFeat, { 60, 90, 150, 180 }, 0.6), fmt(withFeat))
+    check("level Feats carry +25%, others none", bonusOk)
     check("no capped group above 1.5 sets in any hour", rep.maxCapped <= 1.55, ("%.2f"):format(rep.maxCapped))
   end,
 }

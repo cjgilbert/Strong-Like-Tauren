@@ -36,7 +36,7 @@ Anything due in combat or a dungeon waits in your **Totem** until you're free.
 |---|---|---|---|
 | Rage gained | ~170 (quests 53 + ding 50 + passive 67) | ~83 | 67 |
 | Walkabouts | 2 | 2 | 2 |
-| Feats of Strength | 1.33 (capped by the 45-min cooldown) | ~0.8 | 0.67 (floor) |
+| Feats of Strength | 1.33 (capped by the 45-min cooldown; extra Rage banks toward Double Feats, so the long-run average is higher) | ~0.8 | 0.67 (floor) |
 | Load on any one muscle group | ≤ 1.5 sets | ≤ 1.5 sets | ≤ 1.5 sets |
 
 ## Product principles
@@ -86,10 +86,11 @@ Anything due in combat or a dungeon waits in your **Totem** until you're free.
 
 ### E. Pacing engine (the burst/drought fix)
 - E1 v1 Two layers: Walkabouts (timer-driven) and Feats of Strength (Rage-driven).
-- E2 v1 Rage runs 0–100. It fills passively (+100 per 90 min of non-away play) and persists between sessions. New installs start at 40, so the first Feat comes after about 54 min.
+- E2 v1 Rage fills to 100 per Feat and banks up to 200 (setting "Bank extra Rage", default on; off = clamp at 100). It fills passively (+100 per 90 min of non-away play) and persists between sessions. New installs start at 40, so the first Feat comes after about 54 min.
 - E3 v1 Event Rage (configurable; 0 disables): quest 10 · level-up 50 · death 35 (repeats within 30 s ignored) · boss kill 30 (ENCOUNTER_END with success) · first visit to a map on this character 15 (never while on a taxi) · Hearthstone 10.
 - E4 v1 Diminishing returns: gain = base ÷ (1 + 0.5 × same-type events in the last 60 min).
-- E5 v1 A Feat is earned at Rage 100 once 45 min have passed since the last Feat was *earned*. While it waits, the bar shows "Feat in 12m". Overflow is wasted but still counts toward the flavor.
+- E5 v1 A Feat is earned at Rage 100 once 45 min have passed since the last Feat was *earned*. While it waits, the bar shows "Feat in 12m". Rage above 100 stays banked (up to 200) and counts toward the flavor. A Feat spends 100 and leaves the remainder. At Rage 200, with no Feat already waiting, the Feat earned is a **Double Feat** ("ENRAGED!"): it spends 200 and has 2 × the usual exercises (max 6) on distinct primary muscle groups, each with the normal amount; the per-hour and per-day muscle caps still apply. If a Feat is already pending, a new earn merges (+25%) and spends only 100. When the bar reaches the cap during the cooldown, a one-time note says when the next (Double) Feat comes. The Totem shows "Feat in 12m · Rage 175" (or "Double Feat in 12m" at 200).
+- E5b v1 ENRAGED!: a new Double Feat prints an in-character chat line, shows big red-orange center text and plays a war-horn sound (the text and sound are held while the game is busy; the reminder toast follows at the next safe moment with the title "ENRAGED! Double Feat of Strength" and a red glow). Achievements: Unbridled Rage (first completed Double Feat), Berserker (10).
 - E6 v1 A Feat is 2 exercises (configurable 1–3) on different primary muscle groups. It is delivered with the next Walkabout, or alone if none is due within 30 min, and can be done early from the Totem.
 - E7 v1 Flavor comes from the biggest Rage source: death → cardio "penance", boss → legs, ding → +25%, zone → march, hearth → water + walk.
 - E8 v1 Rest day: Walkabouts continue, Rage pauses, a pending Feat is removed silently, and rest day switches off at the next day rollover (days start at 4 am).
@@ -127,7 +128,7 @@ Anything due in combat or a dungeon waits in your **Totem** until you're free.
 - I5 v1 Totem lock / scale / position; sound and center-text toggles.
 
 ### J. Flavor
-- J1 v1 Random quips per situation: "Zug zug." · "Strong like Tauren!" · "Time is money, friend! Snoozed 10 min." · "At least I have chicken." (skip) · "The Spirit Healer demands penance." · "Rage capped — Feat in 12m." · "Rooted (x2): 60 min seated."
+- J1 v1 Random quips per situation: "Zug zug." · "Strong like Tauren!" · "Time is money, friend! Snoozed 10 min." · "At least I have chicken." (skip) · "The Spirit Healer demands penance." · "Rage banked full — Double Feat in 12m." · "Rooted (x2): 60 min seated."
 - J2 v1 Vocabulary: Walkabout, Feat of Strength, Totem, Rage, Rooted (debuff), Earthmother's Vigor (buff after a break).
 - J3 v1 Exercise puns: Kodo Squats, War Stomp (jacks), Shield Wall (plank), Totem Stance (wall sit), Hamstring (stretch), Whirlwind (torso twists), Plainsrunning (high knees), Thunder Bluff Climbers (mountain climbers), Spirit Healer's Penance (burpees), Hoof Raises (calf raises), Moonwell Dips (chair dips), Zeppelin Hang (pull-ups), Unclench the Mouse Paw (wrist stretch).
 
@@ -189,7 +190,7 @@ preview with Add / Update / Skip. Strings are copied from a select-all edit box.
 2. **`/tauren selftest`** (fake clock + API stub):
    - Util: 4 am day key, round-to-5, defaults repair.
    - Codec: round-trip of all built-ins including reserved characters and UTF-8; a one-character change fails the checksum; `SLT9` is rejected; names containing `|cff` are sanitized.
-   - Rage: the 10 / 6.67 / 5 series; events leave the window after 60 min; cooldown blocks at 44:59 and allows at 45:00; gains while capped still set the flavor.
+   - Rage: the 10 / 6.67 / 5 series; events leave the window after 60 min; cooldown blocks at 44:59 and allows at 45:00; gains while capped still set the flavor; Rage banks to 200 (100 with banking off); spend leaves the remainder; a steady ~175 Rage per cycle produces a 4-slot Double Feat within a few cycles with the muscle caps intact.
    - Seated: a 599 s gap continues and 600 s starts fresh; backwards clock; the 3-min and 10-min away branches; Rooted stacks at 45 and 60 min.
    - Picker: all 32 filter combinations × equipment produce a Walkabout and a Feat (or the fallback); never repeats the previous pick; caps hold; rounding; Swap keeps the load.
    - Queue / History / Progress: +25% merge only once; expiry; Walkabout never over 5 min; pruning leaves totals identical; apply(−1) exactly reverses apply(+1); the streak survives days off.

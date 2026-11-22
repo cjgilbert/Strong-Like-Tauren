@@ -115,6 +115,16 @@ function History.build(parent)
     r.del = Kit.button(r, "x", 20, 18)
     r.del:SetPoint("RIGHT", r, "RIGHT", -2, 0)
     Kit.tip(r.del, L["Delete this entry"])
+    -- The exercise column is a fixed single line; the tooltip shows the full name.
+    r:EnableMouse(true)
+    r:HookScript("OnEnter", function(self)
+      if GameTooltip and self.fullName then
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(self.fullName, 1, 1, 1, 1, true)
+        GameTooltip:Show()
+      end
+    end)
+    r:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     r.del:SetScript("OnClick", function()
       local id = r.rowId
       if not id then return end
@@ -156,7 +166,8 @@ function History.refresh(root)
         local def = ns.env.byId[row.x]
         r.rowId = row.id
         r.t:SetText(U.date("%m-%d %H:%M", row.t))
-        r.x:SetText(def and ns.Library.displayName(def) or tostring(row.x))
+        r.fullName = def and ns.Library.displayName(def) or tostring(row.x)
+        r.x:SetText(r.fullName)
         local amt = (row.o == "skip" or row.o == "exp" or row.o == "cred") and "-" or Kit.amountStr(def, row.a, row.k)
         r.a:SetText(amt)
         r.o:SetText(OUTCOME[row.o] or tostring(row.o))

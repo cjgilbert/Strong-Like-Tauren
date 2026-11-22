@@ -78,6 +78,7 @@ end
 function ns.UI.refreshAll()
   local UI = ns.UI
   if UI.Totem and UI.Totem.Refresh then ns.guard(UI.Totem.Refresh, UI.Totem) end
+  if UI.Toast and UI.Toast.Refresh then ns.guard(UI.Toast.Refresh, UI.Toast) end
   if UI.Main and UI.Main.Refresh then ns.guard(UI.Main.Refresh, UI.Main) end
   if UI.MinimapButton and UI.MinimapButton.Refresh then ns.guard(UI.MinimapButton.Refresh, UI.MinimapButton) end
 end

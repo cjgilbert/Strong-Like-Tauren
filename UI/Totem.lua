@@ -7,7 +7,7 @@ local Tm = {}
 ns.UI.Totem = Tm
 local T -- Theme, resolved lazily so load order inside UI never matters
 
-local WIDTH, HEADER_H, ROW_H, MAX_ROWS = 300, 56, 52, 6
+local WIDTH, HEADER_H, ROW_H, MAX_ROWS = 300, 56, 58, 6
 local rows = {}
 local frame, snoozeMenu
 local hidden = false
@@ -107,6 +107,8 @@ local SWAP_WHY = {
   gone = "That one is gone.",
 }
 
+local amountText
+
 local function buildRow(i)
   local th = theme()
   local r = CreateFrame("Frame", nil, frame)
@@ -118,14 +120,16 @@ local function buildRow(i)
   r.icon:SetPoint("TOPLEFT", 4, -3)
   r.name = th.Text(r, "GameFontNormalSmall", "", th.C.text)
   r.name:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 5, -1)
-  r.name:SetPoint("RIGHT", r, "RIGHT", -52, 0)
+  r.name:SetPoint("RIGHT", r, "RIGHT", -5, 0)
   r.name:SetHeight(14)
   r.name:SetWordWrap(false)
+  -- Line 2: "real name · amount" (dimmer). Fixed one-line height; the full text is always in the tooltip.
+  -- The buttons sit in the bottom strip (BOTTOMLEFT, 18 high), below both text lines, so they never overlap the text.
   r.kind = th.Text(r, "GameFontNormalSmall", "", th.C.dim)
   r.kind:SetPoint("TOPLEFT", r.name, "BOTTOMLEFT", 0, -1)
-  r.amount = th.Text(r, "GameFontNormal", "", th.C.gold)
-  r.amount:SetPoint("TOPRIGHT", r, "TOPRIGHT", -5, -5)
-  r.amount:SetJustifyH("RIGHT")
+  r.kind:SetPoint("RIGHT", r, "RIGHT", -5, 0)
+  r.kind:SetHeight(12)
+  r.kind:SetWordWrap(false)
 
   local function act(fn)
     return function(_, mouse)
@@ -154,7 +158,9 @@ local function buildRow(i)
   th.Tooltip(r, function()
     local d = r.def
     if not d then return nil end
-    local lines = { (d.pun and d.pun ~= d.name) and (d.pun .. " - " .. d.name) or d.name }
+    local lines = { d.pun or d.name }
+    if d.pun and d.pun ~= d.name then lines[#lines + 1] = d.name end
+    lines[#lines + 1] = (r.item and r.item.k == "W" and "Walkabout" or "Feat of Strength") .. " \194\183 " .. amountText(d, r.slot)
     if d.desc then lines[#lines + 1] = d.desc end
     if r.slot and r.slot.why then lines[#lines + 1] = r.slot.why end
     return lines
@@ -163,23 +169,23 @@ local function buildRow(i)
   return r
 end
 
-local function amountText(def, slot)
+function amountText(def, slot)
   if def and def.kind == "s" or slot.walk then return U.fmtClock(slot.a) end
   return "x" .. tostring(slot.a)
 end
 
 local function layoutRow(r, i, e)
   local th = theme()
-  r.itemId, r.idx, r.slot = e.item.id, e.idx, e.slot
+  r.itemId, r.idx, r.slot, r.item = e.item.id, e.idx, e.slot, e.item
   local def = ns.env and ns.env.byId[e.slot.x]
   r.def = def
   r:ClearAllPoints()
   r:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -HEADER_H - (i - 1) * ROW_H)
   r.icon:SetTexture(def and def.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-  local name = def and ((def.pun and def.pun ~= def.name) and (def.pun .. " - " .. def.name) or def.name) or e.slot.x
-  r.name:SetText(name)
-  r.kind:SetText(e.item.k == "W" and "Walkabout" or "Feat of Strength")
-  r.amount:SetText(amountText(def, e.slot))
+  r.name:SetText(def and (def.pun or def.name) or e.slot.x)
+  local real = def and def.pun and def.pun ~= def.name and def.name or nil
+  local amt = amountText(def, e.slot)
+  r.kind:SetText(real and (real .. " \194\183 " .. amt) or ((e.item.k == "W" and "Walkabout" or "Feat of Strength") .. " \194\183 " .. amt))
   local timed = (def and def.kind == "s") or e.slot.walk
   local x = 4
   for _, b in ipairs(r.btnList) do

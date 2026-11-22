@@ -21,16 +21,27 @@ local function anchorTo(f, gap)
   end
 end
 
+-- Two lines per slot so nothing is ever cut off: the pun on top, "kind · real name · amount" dimmer underneath.
 local function slotLine(it, sl)
   local def = ns.env and ns.env.byId[sl.x]
-  local name = def and ((def.pun and def.pun ~= def.name) and (def.pun .. " - " .. def.name) or def.name) or sl.x
+  local top = def and (def.pun or def.name) or sl.x
+  local real = def and def.pun and def.pun ~= def.name and def.name or nil
   local amt = ((def and def.kind == "s") or sl.walk) and U.fmtClock(sl.a) or ("x" .. sl.a)
-  return ("%s: %s  %s"):format(it.k == "W" and "Walkabout" or "Feat", name, amt)
+  local sub = it.k == "W" and "Walkabout" or "Feat"
+  if real then sub = sub .. " \194\183 " .. real end
+  return ("%s\n|cffb0a090%s \194\183 %s|r"):format(top, sub, amt)
+end
+
+-- The toast only remembers which items it was about (by id); what it lists always comes from the live queue.
+local function liveItems()
+  local Q = ns.db and ns.db.queue
+  if not Q then return nil, nil end
+  return cur.w and ns.Queue.byId(Q, cur.w) or nil, cur.f and ns.Queue.byId(Q, cur.f) or nil
 end
 
 local function lines(w, f)
   local out = {}
-  for _, it in ipairs({ w, f }) do
+  for _, it in ipairs({ w or false, f or false }) do -- not {w, f}: ipairs would stop at a nil Walkabout
     if it then
       for _, sl in ipairs(it.slots) do
         if not sl.o then out[#out + 1] = slotLine(it, sl) end
@@ -41,7 +52,8 @@ local function lines(w, f)
 end
 
 local function firstTimed()
-  for _, it in ipairs({ cur.w, cur.f }) do
+  local w, f = liveItems()
+  for _, it in ipairs({ w or false, f or false }) do
     if it then
       for idx, sl in ipairs(it.slots) do
         local def = ns.env and ns.env.byId[sl.x]
@@ -59,17 +71,21 @@ local function build()
   frame:Hide()
   frame.title = th.Text(frame, "GameFontNormal", "", th.C.gold)
   frame.title:SetPoint("TOPLEFT", 10, -8)
-  frame.title:SetWidth(WIDTH - 20)
+  frame.title:SetWidth(WIDTH - 20 - 20) -- top-right corner is reserved for the close X
   frame.title:SetHeight(30)
   frame.title:SetJustifyV("TOP")
   frame.lines = {}
   for i = 1, 5 do
     local fs = th.Text(frame, "GameFontHighlightSmall", "", th.C.text)
-    fs:SetPoint("TOPLEFT", 10, -40 - (i - 1) * 14)
     fs:SetWidth(WIDTH - 20)
-    fs:SetWordWrap(false)
+    fs:SetWordWrap(true) -- wraps instead of truncating; no fixed height, the toast is sized from GetStringHeight
+    fs:SetJustifyV("TOP")
     frame.lines[i] = fs
   end
+  frame.close = th.CloseButton(frame, function()
+    ns.Do.ack()
+    Ts:Hide() -- items stay queued in the Totem
+  end)
   frame.go = th.Button(frame, "Let's go", 90, 22, function()
     ns.Do.ack()
     local id, idx = firstTimed()
@@ -87,7 +103,7 @@ local function build()
   frame.snooze:SetPoint("BOTTOM", 0, 8)
   frame.skip = th.Button(frame, "Skip", 70, 22, function()
     ns.Do.ack()
-    local w, f = cur.w, cur.f
+    local w, f = liveItems()
     Ts:Hide()
     if w then ns.Do.skip(w.id, nil) end
     if f then ns.Do.skip(f.id, nil) end
@@ -134,22 +150,40 @@ local function titleFor(w, f, moment)
   return ns.quip("due")
 end
 
+-- Re-renders the item lines from the live queue; returns how many slots are still pending.
+local function render()
+  local ls = lines(liveItems())
+  local y = 40
+  for i = 1, 5 do
+    local fs = frame.lines[i]
+    if i == 5 and #ls > 5 then
+      fs:SetText(("... and %d more"):format(#ls - 4))
+    else
+      fs:SetText(ls[i] or "")
+    end
+    fs:ClearAllPoints()
+    if fs:GetText() ~= "" then
+      fs:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -y)
+      y = y + math.max(12, fs:GetStringHeight() or 0) + 5
+    end
+  end
+  frame:SetHeight(math.max(44 + 14 + 34, y + 34))
+  return #ls
+end
+
+-- Called from ns.UI.refreshAll: follows the queue, and hides once nothing it listed is pending.
+function Ts:Refresh()
+  if not (frame and frame:IsShown()) then return end
+  if render() == 0 then self:Hide() end
+end
+
 function Ts:Show(w, f, moment)
   if not (ns.db and ns.env) then return end
   if not frame then build() end
-  cur.w, cur.f = w, f
+  cur.w, cur.f = w and w.id, f and f.id
   local title = titleFor(w, f, moment)
   frame.title:SetText(title)
-  local ls = lines(w, f)
-  for i = 1, 5 do
-    if i == 5 and #ls > 5 then
-      frame.lines[i]:SetText(("... and %d more"):format(#ls - 4))
-    else
-      frame.lines[i]:SetText(ls[i] or "")
-    end
-  end
-  local n = math.min(5, #ls)
-  frame:SetHeight(44 + n * 14 + 34)
+  render()
   anchorTo(frame)
   frame.expires = GetTime() + AUTOHIDE
   anim.t = 0

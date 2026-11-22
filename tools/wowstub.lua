@@ -48,6 +48,19 @@ function methods.SetShown(self, v) self._shown = v and true or false end
 function methods.IsShown(self) return self._shown end
 function methods.IsVisible(self) return self._shown end
 function methods.SetText(self, t) self._text = t end
+-- Text metrics proportional to the text, so layouts that size themselves from the rendered text are testable.
+function methods.SetWidth(self, w) self._w = w end
+function methods.SetWordWrap(self, v) self._wrap = v end
+function methods.SetHeight(self, h) self._h = h; self._heights = self._heights or {}; self._heights[#self._heights + 1] = h end
+function methods.GetStringWidth(self) return #(self._text or "") * 6 end
+function methods.GetStringHeight(self)
+  if (self._text or "") == "" then return 0 end
+  local n = 0
+  for line in ((self._text or "") .. "\n"):gmatch("(.-)\n") do
+    n = n + math.max(1, math.ceil(#line * 6 / (self._w or 1e9)))
+  end
+  return n * 12
+end
 function methods.GetText(self) return self._text or "" end
 function methods.SetValue(self, v) self._value = v end
 function methods.GetValue(self) return self._value or 0 end

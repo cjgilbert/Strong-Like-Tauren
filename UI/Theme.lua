@@ -104,6 +104,19 @@ function T.Button(parent, text, w, h, onClick)
   return b
 end
 
+-- Small top-right close "X" (Blizzard's close button when available, else a plain "x" button).
+function T.CloseButton(parent, onClick)
+  local b, templated = create("Button", nil, parent, "UIPanelCloseButton")
+  if templated then
+    b:SetSize(22, 22)
+    setupClicks(b, onClick)
+  else
+    b = T.Button(parent, "x", 18, 18, onClick)
+  end
+  b:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -3, -3)
+  return b
+end
+
 -- Shows a tooltip on owner. lines = { "Title", "text", { "left", "right" } } or a function returning that table.
 function T.Tooltip(owner, lines)
   owner:HookScript("OnEnter", function(self)

@@ -21,13 +21,14 @@ local function getPrompt(channel, y)
   p:Hide()
   p.text = th.Text(p, "GameFontHighlight", "", th.C.text)
   p.text:SetPoint("TOPLEFT", 12, -10)
-  p.text:SetWidth(WIDTH - 24)
+  p.text:SetWidth(WIDTH - 24 - 18) -- right corner is reserved for the close X
   p.text:SetHeight(34)
   p.text:SetJustifyV("TOP")
   p.b1 = th.Button(p, "", 120, 22, function() p:Choose(1) end)
   p.b1:SetPoint("BOTTOMLEFT", 12, 10)
   p.b2 = th.Button(p, "", 120, 22, function() p:Choose(2) end)
   p.b2:SetPoint("BOTTOMRIGHT", -12, 10)
+  p.close = th.CloseButton(p, function() p:Choose(2) end) -- X = the neutral (second) choice
   function p:Choose(n)
     local fn = (n == 1) and self.fn1 or self.fn2
     self.fn1, self.fn2, self.onTimeout, self.expires = nil, nil, nil, nil
@@ -96,7 +97,7 @@ function Pr:Undo(action)
   local p = getPrompt("Undo", -372)
   p:Open(("Logged: %s %s"):format(amount, name),
     "Undo", function() ns.Do.undo(action) end,
-    nil, nil, 10)
+    "OK", nil, 10)
 end
 
 -- Partial amount ----------------------------------------------------------------------------------------------------------------
@@ -115,7 +116,7 @@ function Pr:Partial(itemId, idx)
     partial:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
     partial.text = th.Text(partial, "GameFontNormal", "", th.C.gold)
     partial.text:SetPoint("TOP", 0, -12)
-    partial.text:SetWidth(240)
+    partial.text:SetWidth(220)
     partial.text:SetJustifyH("CENTER")
     partial.edit = th.EditBox(partial, 80, 22, false)
     partial.edit:SetPoint("TOP", 0, -38)
@@ -134,6 +135,7 @@ function Pr:Partial(itemId, idx)
     partial.ok:SetPoint("BOTTOMLEFT", 16, 12)
     partial.cancel = th.Button(partial, "Cancel", 100, 22, function() partial:Hide() end)
     partial.cancel:SetPoint("BOTTOMRIGHT", -16, 12)
+    partial.close = th.CloseButton(partial, function() partial:Hide() end)
     partial:Hide()
   end
   local def = ns.env.byId[sl.x]

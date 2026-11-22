@@ -344,7 +344,16 @@ local function makeRow(content, i)
   r.on:SetPoint("LEFT", r, "LEFT", 340, 0)
   r.pref = Kit.text(r, "", "GameFontHighlightSmall", COL.gold, 60)
   r.pref:SetPoint("LEFT", r, "LEFT", 410, 0)
-  Kit.tip(r, L["Preference: more stars means picked more often."])
+  -- The name column is a fixed single line; the tooltip always carries the full name.
+  r:HookScript("OnEnter", function(self)
+    if GameTooltip and self.def then
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText(ns.Library.displayName(self.def), 1, 1, 1, 1, true)
+      GameTooltip:AddLine(L["Preference: more stars means picked more often."], 0.8, 0.8, 0.8, true)
+      GameTooltip:Show()
+    end
+  end)
+  r:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   r.edit = Kit.button(r, L["Edit"], 50, 22, function() if r.def then openEditor(r.def.id) end end)
   r.edit:SetPoint("RIGHT", r, "RIGHT", -6, 0)
   return r

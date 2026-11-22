@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- Changed: the due reminder appears top-center with a glow, closes on click, Escape or X, and pauses its 10-second timer while hovered.
+- New: choose the reminder sound (Alert, Horn, Chime, Menu) with a Test button in Settings; Alert (ready check) is the default.
+
 ## 0.1.2
 
 - Changed: due Walkabouts and Feats now show a compact reminder that plays a soft sound, flashes the taskbar and closes itself after 10 seconds (nothing is skipped; skip from the Totem).

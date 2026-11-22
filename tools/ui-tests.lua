@@ -86,22 +86,12 @@ local function rowFor(pattern)
   end
 end
 local function toastShown() return _G.StrongLikeTaurenToast and _G.StrongLikeTaurenToast._shown end
-local function toastText()
-  local t = {}
-  if _G.StrongLikeTaurenToast then
-    for _, fs in ipairs(_G.StrongLikeTaurenToast.lines) do
-      if fs._text and fs._text ~= "" then t[#t + 1] = fs._text end
-    end
-  end
-  return table.concat(t, "\n")
-end
+local function toastText() return _G.StrongLikeTaurenToast and _G.StrongLikeTaurenToast.text._text or "" end
 local function toastSlotCount()
-  local n = 0
-  if _G.StrongLikeTaurenToast then
-    for _, fs in ipairs(_G.StrongLikeTaurenToast.lines) do
-      if fs._text and fs._text ~= "" then n = n + 1 end
-    end
-  end
+  local t = toastText()
+  if t == "" then return 0 end
+  local n = 1
+  for _ in t:gmatch(" \194\183 ") do n = n + 1 end
   return n
 end
 local function lastHeight(f) return f._heights and f._heights[#f._heights] end
@@ -175,8 +165,8 @@ scenario("feat + walkabout", true, false)
 scenario("feat, toast shown first", false, true)
 scenario("feat + walkabout, toast shown first", true, true)
 
--- A Skip on the toast after everything was resolved must not log anything extra.
-print("-- toast Skip after resolve")
+-- Buttons on the toast after everything was resolved must not log anything extra.
+print("-- toast buttons after resolve")
 boot()
 local F = addFeat()
 ns.UI.Totem:Show()
@@ -184,8 +174,8 @@ ns.UI.Toast:Show(nil, F, "login")
 click(rowFor("Kodo Squats").done)
 click(rowFor("Whirlwind").done)
 local rowsBefore = #ns.db.log.rows
-if toastShown() then click(_G.StrongLikeTaurenToast.skip) end
-check(#ns.db.log.rows == rowsBefore, "toast Skip after resolve logs nothing")
+check(not toastShown(), "toast is gone once everything it listed is done")
+check(#ns.db.log.rows == rowsBefore, "toast after resolve logs nothing")
 
 -- Toast refreshes through ns.UI.refreshAll when a slot is resolved elsewhere.
 print("-- toast follows the queue")
@@ -209,25 +199,70 @@ ns.UI.Totem:Show()
 ns.UI.Toast:Show(W2, nil, "login")
 local toast = _G.StrongLikeTaurenToast
 local shuffle, climbers = ns.env.byId.shuffle, ns.env.byId.climbers
-check(toast.lines[1]._text:find(shuffle.pun, 1, true) and toast.lines[1]._text:find(shuffle.name, 1, true),
-  "toast has full Hoof & Squat Shuffle pun and name")
-check(toast.lines[1]._wrap ~= false, "toast line wraps rather than truncating")
+check(toast.text._text:find(shuffle.pun, 1, true), "toast has the full Hoof & Squat Shuffle name")
+check(toast.text._wrap ~= false, "toast line wraps rather than truncating")
 local h1 = lastHeight(toast)
 ns.UI.Toast:Show(W2, F2, "login")
-check(toast.lines[2]._text:find(climbers.pun, 1, true) and toast.lines[2]._text:find(climbers.name, 1, true),
-  "toast has full Thunder Bluff Climbers pun and name")
+check(toast.text._text:find(shuffle.pun, 1, true) and toast.text._text:find(climbers.pun, 1, true),
+  "toast has both full names")
 check(lastHeight(toast) > h1, "toast height grows with more lines (" .. tostring(h1) .. " -> " .. tostring(lastHeight(toast)) .. ")")
 -- a long custom name (40 + 40 bytes) wraps into more height than a short one
-local long = { id = "longx", name = ("N"):rep(40), pun = ("P"):rep(40), kind = "r", std = 10, lo = 1, hi = 20 }
+local long = { id = "longx", name = ("N"):rep(40), pun = ("P"):rep(60), kind = "r", std = 10, lo = 1, hi = 20 }
 ns.env.byId.longx = long
 F2.slots = { slot("longx", 10) }
 ns.UI.Toast:Show(nil, F2, "login")
 local h3 = lastHeight(toast)
-check(toast.lines[1]._text:find(long.pun, 1, true) and toast.lines[1]._text:find(long.name, 1, true), "toast keeps a 40+40 byte name whole")
+check(toast.text._text:find(long.pun, 1, true), "toast keeps a 60 byte name whole")
 F2.slots = { slot("squat", 10) }
 ns.UI.Toast:Show(nil, F2, "login")
 check(h3 > lastHeight(toast), "toast is taller for a long name than a short one")
 ns.env.byId.longx = nil
+
+-- The compact reminder: title, one line, sound once, 10 s auto-close, X, Snooze 10.
+print("-- compact reminder")
+local plays, flashes = 0, 0
+_G.PlaySound = function() plays = plays + 1 end
+_G.FlashClientIcon = function() flashes = flashes + 1 end
+boot()
+local W3 = addWalk()
+ns.UI.Totem:Show()
+ns.UI.refreshAll()
+local qBefore = #ns.db.queue.items .. "|" .. pendingCount()
+ns.dispatch({ { t = "toast", w = W3, f = nil, moment = "tick" } })
+local rem = _G.StrongLikeTaurenToast
+check(rem and rem._shown, "due Walkabout shows the compact notification")
+check(rem.title._text == "Walkabout time!", "title is Walkabout time! (" .. tostring(rem.title._text) .. ")")
+check(rem.text._text:find(ns.env.byId.walk.pun, 1, true) and rem.text._text:find("2:00", 1, true),
+  "line names the exercise and time (" .. tostring(rem.text._text) .. ")")
+check(rem.go._text == "Let's go" and rem.snooze._text == "Snooze 10" and rem.close, "Let's go, Snooze 10 and X exist")
+check(not rem.skip, "no Skip button")
+check(plays == 1 and flashes == 1, "sound plays once and taskbar flashes once (" .. plays .. "/" .. flashes .. ")")
+stub.clock = stub.clock + 9
+rem._scripts.OnUpdate(rem, 9)
+check(rem._shown, "still shown after 9 s")
+stub.clock = stub.clock + 2
+rem._scripts.OnUpdate(rem, 2)
+check(not rem._shown, "auto-closes after 10 s")
+check(#ns.db.queue.items .. "|" .. pendingCount() == qBefore and ns.Queue.get(ns.db.queue, "W") ~= nil,
+  "auto-close leaves the queue unchanged")
+ns.UI.refreshAll()
+check(#visibleRows() == 1, "Walkabout still in the Totem after auto-close")
+-- feat title and both
+ns.UI.Toast:Show(nil, addFeat(), "tick")
+check(rem.title._text == "Feat of Strength!", "feat-only title")
+ns.UI.Toast:Show(W3, ns.Queue.get(ns.db.queue, "F"), "tick")
+check(rem.title._text:find("Walkabout") and rem.title._text:find("Feat"), "both title")
+-- sound off
+ns.db.settings.nudge.sound = false
+plays = 0
+ns.dispatch({ { t = "toast", w = W3, f = nil, moment = "tick" } })
+check(plays == 0, "no sound when settings.nudge.sound is false")
+ns.db.settings.nudge.sound = true
+-- Snooze 10
+ns.dispatch({ { t = "toast", w = W3, f = nil, moment = "tick" } })
+click(rem.snooze)
+check(not rem._shown and ns.db.nudge.snoozeUntil and ns.db.nudge.snoozeUntil >= ns.now() + 590, "Snooze 10 snoozes and hides")
+check(ns.Queue.get(ns.db.queue, "W") ~= nil, "Snooze keeps the Walkabout queued")
 
 -- Close buttons: X and OK are neutral; nothing changes in history, rep or queue.
 print("-- close buttons")

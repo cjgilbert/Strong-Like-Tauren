@@ -92,6 +92,7 @@ local H = {}
 function H.toast(a)
   if ns.UI.Toast and ns.UI.Toast.Show then ns.UI.Toast:Show(a.w, a.f, a.moment) end
   ns.sound("toast")
+  if FlashClientIcon then pcall(FlashClientIcon) end -- taskbar flash when the game is in the background
 end
 
 function H.feat(a)

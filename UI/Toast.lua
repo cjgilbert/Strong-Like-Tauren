@@ -1,12 +1,13 @@
 local ADDON, ns = ...
 local C, U = ns.C, ns.U
 
--- Non-modal slide-in nudge near the Totem. Never takes keyboard focus. Also the center-text and message variants.
+-- Compact non-modal reminder (Prompts-sized, auto-closes after 10 s) near the Totem. Never takes keyboard focus.
+-- Also the center-text and message variants.
 ns.UI = ns.UI or {}
 local Ts = {}
 ns.UI.Toast = Ts
 
-local WIDTH, AUTOHIDE = 310, 25
+local WIDTH, AUTOHIDE = 320, 10 -- same size as the Prompts frames; closes itself after 10 s
 local frame, msgFrame, centerFrame
 local cur = { w = nil, f = nil }
 local anim = { t = 1 }
@@ -21,15 +22,12 @@ local function anchorTo(f, gap)
   end
 end
 
--- Two lines per slot so nothing is ever cut off: the pun on top, "kind · real name · amount" dimmer underneath.
-local function slotLine(it, sl)
+-- "Kodo Squats 15" / "Mulgore Stroll 2:00": the full name (pun, else real name) and the amount.
+local function slotText(sl)
   local def = ns.env and ns.env.byId[sl.x]
-  local top = def and (def.pun or def.name) or sl.x
-  local real = def and def.pun and def.pun ~= def.name and def.name or nil
-  local amt = ((def and def.kind == "s") or sl.walk) and U.fmtClock(sl.a) or ("x" .. sl.a)
-  local sub = it.k == "W" and "Walkabout" or "Feat"
-  if real then sub = sub .. " \194\183 " .. real end
-  return ("%s\n|cffb0a090%s \194\183 %s|r"):format(top, sub, amt)
+  local name = def and (def.pun or def.name) or sl.x
+  local amt = ((def and def.kind == "s") or sl.walk) and U.fmtClock(sl.a) or tostring(sl.a)
+  return name .. " " .. amt
 end
 
 -- The toast only remembers which items it was about (by id); what it lists always comes from the live queue.
@@ -39,12 +37,12 @@ local function liveItems()
   return cur.w and ns.Queue.byId(Q, cur.w) or nil, cur.f and ns.Queue.byId(Q, cur.f) or nil
 end
 
-local function lines(w, f)
+local function pending(w, f)
   local out = {}
   for _, it in ipairs({ w or false, f or false }) do -- not {w, f}: ipairs would stop at a nil Walkabout
     if it then
       for _, sl in ipairs(it.slots) do
-        if not sl.o then out[#out + 1] = slotLine(it, sl) end
+        if not sl.o then out[#out + 1] = slotText(sl) end
       end
     end
   end
@@ -65,28 +63,24 @@ end
 
 local function build()
   local th = ns.UI.Theme
-  frame = th.Panel(UIParent, "StrongLikeTaurenToast", WIDTH, 120)
+  frame = th.Panel(UIParent, "StrongLikeTaurenToast", WIDTH, 84)
   frame:SetFrameStrata("HIGH")
   frame:SetClampedToScreen(true)
   frame:Hide()
   frame.title = th.Text(frame, "GameFontNormal", "", th.C.gold)
-  frame.title:SetPoint("TOPLEFT", 10, -8)
-  frame.title:SetWidth(WIDTH - 20 - 20) -- top-right corner is reserved for the close X
-  frame.title:SetHeight(30)
+  frame.title:SetPoint("TOPLEFT", 12, -10)
+  frame.title:SetWidth(WIDTH - 24 - 18) -- top-right corner is reserved for the close X
+  frame.title:SetHeight(16)
   frame.title:SetJustifyV("TOP")
-  frame.lines = {}
-  for i = 1, 5 do
-    local fs = th.Text(frame, "GameFontHighlightSmall", "", th.C.text)
-    fs:SetWidth(WIDTH - 20)
-    fs:SetWordWrap(true) -- wraps instead of truncating; no fixed height, the toast is sized from GetStringHeight
-    fs:SetJustifyV("TOP")
-    frame.lines[i] = fs
-  end
+  frame.text = th.Text(frame, "GameFontHighlight", "", th.C.text)
+  frame.text:SetWidth(WIDTH - 24 - 18)
+  frame.text:SetWordWrap(true) -- wraps instead of truncating; the height comes from GetStringHeight
+  frame.text:SetJustifyV("TOP")
   frame.close = th.CloseButton(frame, function()
     ns.Do.ack()
     Ts:Hide() -- items stay queued in the Totem
   end)
-  frame.go = th.Button(frame, "Let's go", 90, 22, function()
+  frame.go = th.Button(frame, "Let's go", 120, 22, function()
     ns.Do.ack()
     local id, idx = firstTimed()
     Ts:Hide()
@@ -94,27 +88,20 @@ local function build()
     if ns.UI.Totem then ns.UI.Totem:Show() end
     if id and ns.UI.Countdown then ns.UI.Countdown:Start(id, idx) end
   end)
-  frame.go:SetPoint("BOTTOMLEFT", 10, 8)
-  frame.snooze = th.Button(frame, "Snooze 10", 90, 22, function()
+  frame.go:SetPoint("BOTTOMLEFT", 12, 10)
+  frame.snooze = th.Button(frame, "Snooze 10", 120, 22, function()
     ns.Do.ack()
     ns.Do.snooze(10)
     Ts:Hide()
   end)
-  frame.snooze:SetPoint("BOTTOM", 0, 8)
-  frame.skip = th.Button(frame, "Skip", 70, 22, function()
-    ns.Do.ack()
-    local w, f = liveItems()
-    Ts:Hide()
-    if w then ns.Do.skip(w.id, nil) end
-    if f then ns.Do.skip(f.id, nil) end
-  end)
-  frame.skip:SetPoint("BOTTOMRIGHT", -10, 8)
+  frame.snooze:SetPoint("BOTTOMRIGHT", -12, 10)
 
   frame:SetScript("OnUpdate", function(self, el)
     if anim.t < 1 then
       anim.t = math.min(1, anim.t + el / 0.25)
       self:SetAlpha(anim.t)
     end
+    -- Timing out is not a skip and not an acknowledgement: everything stays in the Totem.
     if self.expires and GetTime() >= self.expires then Ts:Hide() end
   end)
 end
@@ -143,31 +130,19 @@ local function center(text)
   centerFrame:Show()
 end
 
-local function titleFor(w, f, moment)
-  if w and (w.rooted or 0) > 0 then return ns.quip("rooted", w.rooted) end
-  if moment == "taxi" or moment == "rest" or moment == "leave" then return ns.quip(moment) end
-  if not w and f then return ns.quip("feat") end
-  return ns.quip("due")
+local function titleFor(w, f)
+  if w and f then return "Walkabout & Feat of Strength!" end
+  if f then return "Feat of Strength!" end
+  return "Walkabout time!"
 end
 
--- Re-renders the item lines from the live queue; returns how many slots are still pending.
+-- Re-renders the one-line list from the live queue; returns how many slots are still pending.
 local function render()
-  local ls = lines(liveItems())
-  local y = 40
-  for i = 1, 5 do
-    local fs = frame.lines[i]
-    if i == 5 and #ls > 5 then
-      fs:SetText(("... and %d more"):format(#ls - 4))
-    else
-      fs:SetText(ls[i] or "")
-    end
-    fs:ClearAllPoints()
-    if fs:GetText() ~= "" then
-      fs:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -y)
-      y = y + math.max(12, fs:GetStringHeight() or 0) + 5
-    end
-  end
-  frame:SetHeight(math.max(44 + 14 + 34, y + 34))
+  local ls = pending(liveItems())
+  frame.text:SetText(table.concat(ls, " \194\183 "))
+  frame.text:ClearAllPoints()
+  frame.text:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -28)
+  frame:SetHeight(math.max(84, 28 + math.max(14, frame.text:GetStringHeight() or 0) + 8 + 22 + 10))
   return #ls
 end
 
@@ -181,7 +156,7 @@ function Ts:Show(w, f, moment)
   if not (ns.db and ns.env) then return end
   if not frame then build() end
   cur.w, cur.f = w and w.id, f and f.id
-  local title = titleFor(w, f, moment)
+  local title = titleFor(w, f)
   frame.title:SetText(title)
   render()
   anchorTo(frame)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Changed: due Walkabouts and Feats now show a compact reminder that plays a soft sound, flashes the taskbar and closes itself after 10 seconds (nothing is skipped; skip from the Totem).
+
 ## 0.1.1
 
 - New: Totem buttons to pause the seated clock while you step away (auto-resumes on any input after 5 seconds) and to reset it when you've already been up.

@@ -13,6 +13,7 @@ local Picker, Progress, Library = ns.Picker, ns.Progress, ns.Library
 --   "scenario"), taxi, resting, away, awaySince, settleUntil, pausedSession
 local S = {}
 ns.Scheduler = S
+S.TICK_CAP = 20 -- seatedNow never extrapolates more than about one tick (15 s) past the last tick
 
 local function push(acts, a)
   acts[#acts + 1] = a
@@ -49,7 +50,30 @@ end
 function S.seatedNow(db, now, ctx)
   local B = db.body
   if ctx and ctx.away then return B.acc end
-  return B.acc + math.max(0, now - (B.lastTick or now))
+  return B.acc + math.min(S.TICK_CAP, math.max(0, now - (B.lastTick or now)))
+end
+
+-- Login (not a tick). Time with the game closed is never seated time. A gap of 10+ minutes since the saved logout
+-- starts a fresh stretch and drops the pending Walkabout; a shorter one keeps acc but is not added. A /reload
+-- (isReload) keeps counting. Call before any UI shows the clock; calling with isReload=true first is safe (only the
+-- 10-minute rule applies), then again at PLAYER_ENTERING_WORLD with the real flag.
+function S.login(db, now, env, isReload)
+  local acts = {}
+  local B = db.body
+  local gap = now - (B.lastTick or now)
+  if gap < 0 then gap = 0 end
+  if gap >= 600 then
+    Seated.fresh(B, now)
+    Queue.dropWalk(db.queue)
+    db.nudge.ignored = 0
+    B.awayStart, B.awayFrom = nil, nil
+    B.lastTick = now
+    push(acts, { t = "fresh" })
+  elseif not isReload then
+    B.awayStart, B.awayFrom = nil, nil
+    B.lastTick = now
+  end
+  return acts
 end
 
 -- Credits a break without exercise ("I got up", time away). Returns the credit row.

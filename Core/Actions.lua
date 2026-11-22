@@ -167,6 +167,10 @@ define("tick", function()
   ns.dispatch(S.tick(ns.db, ns.now(), ns.ctx, ns.env))
 end)
 
+define("login", function(isReload)
+  ns.dispatch(S.login(ns.db, ns.now(), ns.env, isReload))
+end)
+
 define("moment", function(kind)
   ns.dispatch(S.moment(ns.db, kind, ns.now(), ns.ctx, ns.env))
 end)

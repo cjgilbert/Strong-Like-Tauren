@@ -25,6 +25,7 @@ local function onLogin()
   ns.env = { defs = defs, byId = byId, rng = rng, char = idx }
   ns.History.prune(ns.db, t)
   ns.ready = true
+  ns.Do.login(true) -- 10+ min since the last logout: fresh stretch, before any UI shows the clock
 
   local UI = ns.UI
   if UI.Totem and UI.Totem.Init then ns.guard(UI.Totem.Init, UI.Totem) end

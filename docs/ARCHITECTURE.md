@@ -47,7 +47,9 @@ ns.SelfTest ns.Sim`. Globals allowed: `StrongLikeTaurenDB`, `StrongLikeTaurenCha
 `undo(db,rowId,before)`, `credit(db,now,env,src)`, `undoCredit(db,rowId,prevAcc)`, `forceWalk(db,now,env)`,
 `manualLog(db,x,amount,now,env)`, `snooze(db,min,now)`, `snoozeInstance(db)`, `pause(db,sec,now)`, `resume(db)`,
 `ack(db)`, `rageEvent(db,kind,now)`, `setRestDay(db,on,now)`, `status(db,now,ctx)`, `gate(db,now,ctx)`,
-`seatedNow(db,now,ctx)`, `deliverable(db,now)`.
+`seatedNow(db,now,ctx)` (extrapolates at most `S.TICK_CAP`=20 s past lastTick), `deliverable(db,now)`,
+`login(db,now,env,isReload)` (gap since saved logout: 10+ min => fresh stretch + Walkabout dropped; shorter => acc kept,
+offline time not added; reload keeps counting; run via `ns.Do.login` at PLAYER_LOGIN and PLAYER_ENTERING_WORLD).
 
 ### Action tables (returned by Scheduler; handled by `ns.dispatch` in `Core/Actions.lua`)
 | Action | Fields | UI behaviour |

@@ -159,6 +159,48 @@ case("rage: gains while capped still choose the flavor", function()
 end)
 
 -- Seated clock -----------------------------------------------------------------------------------------
+case("login: 2 h offline starts fresh and drops the Walkabout", function()
+  local db, env, now = T.world()
+  run(db, env, now, now + db.settings.walk.every * 60 + 60)
+  ok(ns.Queue.get(db.queue, "W"), "walkabout pending")
+  ok(db.body.acc > 0)
+  db.body.lastTick = now + 100 -- saved at logout
+  local t = now + 100 + 7200
+  local acts = ns.Scheduler.login(db, t, env, false)
+  eq(db.body.acc, 0); ok(findAct(acts, "fresh"))
+  ok(not ns.Queue.get(db.queue, "W"), "walkabout dropped")
+  eq(ns.Scheduler.seatedNow(db, t, idle()), 0)
+end)
+
+case("login: 5 min offline keeps acc but does not add the gap", function()
+  local db, env, now = T.world()
+  run(db, env, now, now + 900)
+  local acc = db.body.acc
+  local last = db.body.lastTick
+  ns.Scheduler.login(db, last + 300, env, false)
+  eq(db.body.acc, acc)
+  near(ns.Scheduler.seatedNow(db, last + 300, idle()), acc, 1e-6)
+  ns.Scheduler.tick(db, last + 315, idle(), env)
+  near(db.body.acc, acc + 15, 1e-6)
+end)
+
+case("login: /reload keeps counting", function()
+  local db, env, now = T.world()
+  run(db, env, now, now + 900)
+  local acc, last = db.body.acc, db.body.lastTick
+  ns.Scheduler.login(db, last + 8, env, true)
+  ns.Scheduler.tick(db, last + 8, idle(), env)
+  near(db.body.acc, acc + 8, 1e-6)
+end)
+
+case("seatedNow extrapolates at most one tick", function()
+  local db, env, now = T.world()
+  run(db, env, now, now + 300)
+  local acc, last = db.body.acc, db.body.lastTick
+  near(ns.Scheduler.seatedNow(db, last + 10, idle()), acc + 10, 1e-6)
+  near(ns.Scheduler.seatedNow(db, last + 7200, idle()), acc + ns.Scheduler.TICK_CAP, 1e-6)
+end)
+
 case("seated: 599 s gap continues, 600 s starts fresh", function()
   local db, env, now = T.world()
   run(db, env, now, now + 600)

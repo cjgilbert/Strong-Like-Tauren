@@ -13,9 +13,9 @@ local function check(cond, label)
 end
 
 local ns
-local function boot()
+local function boot(keep, pew)
   stub.frames, stub.timers = {}, {}
-  _G.StrongLikeTaurenDB, _G.StrongLikeTaurenCharDB = nil, nil -- fresh saved variables per scenario
+  if not keep then _G.StrongLikeTaurenDB, _G.StrongLikeTaurenCharDB = nil, nil end -- fresh saved variables per scenario
   ns = {}
   for line in io.lines(root .. "/" .. ADDON .. ".toc") do
     line = line:gsub("\r", ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -36,6 +36,7 @@ local function boot()
   end
   fire("ADDON_LOADED", ADDON)
   fire("PLAYER_LOGIN")
+  if pew then fire("PLAYER_ENTERING_WORLD", table.unpack and table.unpack(pew) or unpack(pew)) end
   assert(ns.ready, "addon did not become ready")
   ns.db.settings.firstRun = false
   ns.db.settings.nudge.center = false
@@ -297,6 +298,28 @@ ns.UI.Totem:Refresh()
 checkRepBar("after refresh")
 ns.UI.refreshAll()
 checkRepBar("after refreshAll")
+
+-- Login after the game was closed: the seated clock must not carry the old stretch or the offline gap.
+local function seatText() return ns.UI.Totem.frame.seat.text._text or "" end
+local function loginScenario(label, offline, acc, pew, expectMin, expectMax)
+  print("-- " .. label)
+  boot()
+  local saved = _G.StrongLikeTaurenDB
+  saved.body.acc = acc
+  saved.body.lastTick = os.time() - offline
+  boot(true, pew) -- same saved variables: ADDON_LOADED, PLAYER_LOGIN, PLAYER_ENTERING_WORLD
+  ns.UI.Totem:Show()
+  ns.UI.Totem:Refresh()
+  local shown = ns.Scheduler.seatedNow(ns.db, ns.now(), ns.ctx)
+  check(shown >= expectMin and shown <= expectMax, label .. ": seatedNow " .. shown .. " not in [" .. expectMin .. "," .. expectMax .. "]")
+  return seatText()
+end
+local txt = loginScenario("login after 2 h with acc 37 min", 7200, 37 * 60, { true, false }, 0, 20)
+check(txt:find("Seated 0:0"), "login after 2 h: Totem shows 0:0x immediately (" .. txt .. ")")
+txt = loginScenario("login after 5 min with acc 37 min", 300, 37 * 60, { true, false }, 37 * 60, 37 * 60 + 20)
+check(txt:find("Seated 37:"), "login after 5 min: Totem shows 37:xx, not +5 min (" .. txt .. ")")
+txt = loginScenario("/reload with acc 37 min", 4, 37 * 60, { false, true }, 37 * 60, 37 * 60 + 20)
+check(txt:find("Seated 37:"), "/reload keeps counting (" .. txt .. ")")
 
 print(("ui-tests: %d passed, %d failed"):format(passed, failed))
 print(failed == 0 and "UI TESTS OK" or ("UI TESTS: " .. failed .. " failure(s)"))

@@ -90,6 +90,7 @@ function H.PLAYER_ENTERING_WORLD(initial, reloading)
     if id then ns.cdb.zones[id] = ns.cdb.zones[id] or t end
   end
   primed = true
+  if (initial or reloading) and ns.ready and ns.db then ns.Do.login(reloading and true or false) end
   if initial or reloading then
     if C_Timer and C_Timer.After then
       C_Timer.After(10, function() ns.guard(moment, "login") end)

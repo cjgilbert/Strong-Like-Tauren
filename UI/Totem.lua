@@ -14,6 +14,10 @@ local hidden = false
 local dirty = false
 local entries = {}
 local acc = 0
+local forceLayout = false -- a collapse/expand click is applied even in combat (these frames are not protected)
+local PAUSE_ICON, PLAY_ICON = "Interface\\TimeManager\\PauseButton", "Interface\\TimeManager\\PlayButton"
+local UP_ICON = "Interface\\RAIDFRAME\\ReadyCheck-Ready"
+local BTN = 14 -- header icon buttons: fixed size so the header never shifts
 
 local function theme()
   T = T or ns.UI.Theme
@@ -221,11 +225,20 @@ function Tm:UpdateHeader()
   local seated = st.seated
   local frac = math.min(1, seated / every)
   frame.seat:SetValue(frac)
-  frame.seat:SetBarColor(frac < 0.75 and th.C.green or (frac < 1 and th.C.amber or th.C.red))
   local txt = U.fmtClock(seated)
-  if ns.ctx and ns.ctx.away then txt = txt .. " (away)" end
-  if st.rooted > 0 and seated >= every then txt = ("Rooted x%d   %s"):format(st.rooted, txt) else txt = "Seated " .. txt end
+  if st.paused then
+    -- Paused: neutral color and the word itself, never color alone.
+    frame.seat:SetBarColor(th.C.dim)
+    txt = "Paused " .. txt
+  else
+    frame.seat:SetBarColor(frac < 0.75 and th.C.green or (frac < 1 and th.C.amber or th.C.red))
+    if ns.ctx and ns.ctx.away then txt = txt .. " (away)" end
+    if st.rooted > 0 and seated >= every then txt = ("Rooted x%d   %s"):format(st.rooted, txt) else txt = "Seated " .. txt end
+  end
   frame.seat.text:SetText(txt)
+  if frame.pause then
+    frame.pause.icon:SetTexture(st.paused and PLAY_ICON or PAUSE_ICON)
+  end
 
   frame.rage:SetValue(math.min(1, st.rage / 100))
   local rtxt
@@ -260,13 +273,14 @@ function Tm:Refresh()
   frame.lock:SetAlpha(s.totem.locked and 1 or 0.35)
   collect()
   self:UpdateHeader()
-  if InCombatLockdown and InCombatLockdown() then
+  local collapsed = s.totem.collapsed
+  frame.collapse:SetText(collapsed and "+" or "-")
+  if InCombatLockdown and InCombatLockdown() and not forceLayout then
     dirty = true
     return
   end
+  forceLayout = false
   dirty = false
-  local collapsed = s.totem.collapsed
-  frame.collapse:SetText(collapsed and "+" or "-")
   for i = 1, MAX_ROWS do
     local r = rows[i]
     if not r then r = buildRow(i); rows[i] = r end
@@ -314,18 +328,37 @@ function Tm:Init()
   icon:SetTexture(C.ICON)
   frame.icon = icon
 
-  frame.seat = th.Bar(frame, WIDTH - 46 - 30, 14, th.C.green)
+  -- The seated bar is narrowed by two fixed 14 px icon buttons (Pause, I got up) sitting right of it.
+  frame.seat = th.Bar(frame, WIDTH - 46 - 30 - 2 * (BTN + 2), 14, th.C.green)
   frame.seat:SetPoint("TOPLEFT", 48, -8)
+  frame.pause = th.IconButton(frame, PAUSE_ICON, BTN, nil, function()
+    if ns.db and ns.db.body.paused then ns.Do.resumeClock() else ns.Do.pauseClock() end
+  end)
+  frame.pause:SetPoint("TOPLEFT", frame.seat, "TOPRIGHT", 2, 0)
+  th.Tooltip(frame.pause, function()
+    if ns.db and ns.db.body.paused then return { "Resume seated clock", "Pick up where the clock stopped." } end
+    return { "Pause seated clock \226\128\148 I'm getting up for a bit",
+             "Stops the clock, Rage and reminders. Resumes when you click again, or when you move after 5 seconds." }
+  end)
+  frame.gotUp = th.IconButton(frame, UP_ICON, BTN, { "I already got up \226\128\148 reset the seated clock",
+                                                      "Counts as a break and starts the clock from 0:00." },
+    function() ns.Do.gotUp() end)
+  frame.gotUp:SetPoint("TOPLEFT", frame.pause, "TOPRIGHT", 2, 0)
   frame.rage = th.Bar(frame, WIDTH - 46 - 30, 12, th.C.rage)
   frame.rage:SetPoint("TOPLEFT", 48, -24)
   frame.rep = th.Bar(frame, WIDTH - 46 - 30, 12, th.C.gold)
   frame.rep:SetPoint("TOPLEFT", 48, -38)
 
   frame.collapse = th.Button(frame, "-", 18, 18, function()
+    forceLayout = true
     ns.Do.setSetting("totem.collapsed", not ns.db.settings.totem.collapsed)
+    forceLayout = false
   end)
   frame.collapse:SetPoint("TOPRIGHT", -6, -7)
-  th.Tooltip(frame.collapse, { "Collapse / expand" })
+  th.Tooltip(frame.collapse, function()
+    if ns.db and ns.db.settings.totem.collapsed then return { "Expand", "Show the pending Walkabout and Feats." } end
+    return { "Collapse", "Show only the header." }
+  end)
 
   frame.lock = th.Button(frame, "L", 18, 18, function()
     ns.Do.setSetting("totem.locked", not ns.db.settings.totem.locked)

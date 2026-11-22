@@ -75,6 +75,7 @@ function DB.repair(db, now)
   if type(db.body.rage) ~= "table" then db.body.rage = ns.Rage.new(40) end
   U.merge(db.body.rage, fresh.body.rage)
   db.body.rage.v = U.clamp(tonumber(db.body.rage.v) or 0, 0, 100)
+  if type(db.body.paused) ~= "number" then db.body.paused = nil end
 
   local rows, keep = db.log.rows, {}
   for i = 1, #rows do if validRow(rows[i]) then keep[#keep + 1] = rows[i] end end

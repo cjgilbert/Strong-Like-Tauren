@@ -230,6 +230,19 @@ define("gotUp", function()
   return row
 end)
 
+define("pauseClock", function()
+  if S.pauseClock(ns.db, ns.now()) then ns.say(ns.L["Seated clock paused."]) end
+  ns.UI.refreshAll()
+end)
+
+-- auto = resumed by Events because input was seen after the grace period.
+define("resumeClock", function(auto)
+  if S.resumeClock(ns.db, ns.now()) then
+    ns.say(auto and ns.L["Welcome back! Seated clock resumed."] or ns.L["Seated clock resumed."])
+  end
+  ns.UI.refreshAll()
+end)
+
 define("manualLog", function(x, amount)
   local acts, err = S.manualLog(ns.db, x, amount, ns.now(), ns.env)
   if not acts then return false, err end

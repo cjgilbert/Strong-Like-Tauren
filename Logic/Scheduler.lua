@@ -49,8 +49,35 @@ end
 -- Seated seconds right now (for display between ticks).
 function S.seatedNow(db, now, ctx)
   local B = db.body
+  if B.paused then return B.acc end
   if ctx and ctx.away then return B.acc end
   return B.acc + math.min(S.TICK_CAP, math.max(0, now - (B.lastTick or now)))
+end
+
+-- "Pause seated clock": the player is up for a bit. acc, passive Rage, nudges and away prompts all stand still until
+-- resumeClock. body.paused = the time it was paused (persisted, so /reload keeps it). Returns true if it paused now.
+function S.pauseClock(db, now)
+  local B = db.body
+  if B.paused then return false end
+  -- bank what the clock showed (at most one tick of extrapolation) so the frozen value is the displayed one
+  B.acc = B.acc + math.min(S.TICK_CAP, math.max(0, now - (B.lastTick or now)))
+  B.lastTick = now
+  B.awayStart, B.awayFrom = nil, nil
+  B.paused = now
+  return true
+end
+
+-- Continues the clock exactly where it stopped (not a break). Time spent paused is never counted, nor judged as away.
+-- Returns the seconds it was paused for, or nil when it was not paused.
+function S.resumeClock(db, now)
+  local B = db.body
+  if not B.paused then return nil end
+  local dur = math.max(0, now - B.paused)
+  B.paused = nil
+  B.lastTick = now
+  B.resumedAt = now
+  B.awayStart, B.awayFrom = nil, nil
+  return dur
 end
 
 -- Login (not a tick). Time with the game closed is never seated time. A gap of 10+ minutes since the saved logout
@@ -116,7 +143,7 @@ function S.gate(db, now, ctx)
     or inst == "raid" or inst == "pvp" or inst == "arena" or inst == "scenario"
     or (inst == "party" and s.dungeon == "hold")
   local snoozed = now < (N.snoozeUntil or 0) or (N.snoozeInst and inst ~= "none")
-  local paused = now < (N.pauseUntil or 0) or ctx.pausedSession
+  local paused = now < (N.pauseUntil or 0) or ctx.pausedSession or db.body.paused ~= nil
   quiet = quiet and true or false
   local away = ctx.away and true or false
   return { quiet = quiet, away = away, snoozed = snoozed and true or false, paused = paused and true or false,
@@ -173,11 +200,18 @@ function S.tick(db, now, ctx, env)
 
   if not s.enabled then return acts end
 
+  -- Seated clock paused: nothing accrues (no seated time, no passive Rage), nothing is judged (no away prompt) and
+  -- nothing is delivered. Resuming simply continues.
+  if B.paused then
+    B.awayStart, B.awayFrom = nil, nil
+    return acts
+  end
+
   -- Away: no seated time and no passive Rage. Coming back decides what the time away was.
   if ctx.away then
     if not B.awayStart then
       B.awayFrom = now
-      B.awayStart = math.min(now, ctx.awaySince or now)
+      B.awayStart = math.max(math.min(now, ctx.awaySince or now), B.resumedAt or 0) -- never before a resume
     end
   else
     if B.awayStart then
@@ -469,6 +503,7 @@ function S.status(db, now, ctx)
     rage = B.rage.v,
     featCooldown = cd,
     restDay = B.restDay and true or false,
+    paused = B.paused,
     W = Queue.get(db.queue, "W"),
     F = Queue.get(db.queue, "F"),
   }

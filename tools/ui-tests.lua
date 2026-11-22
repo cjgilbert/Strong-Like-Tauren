@@ -321,6 +321,73 @@ check(txt:find("Seated 37:"), "login after 5 min: Totem shows 37:xx, not +5 min 
 txt = loginScenario("/reload with acc 37 min", 4, 37 * 60, { false, true }, 37 * 60, 37 * 60 + 20)
 check(txt:find("Seated 37:"), "/reload keeps counting (" .. txt .. ")")
 
+-- Pause seated clock / I got up buttons.
+print("-- pause and I got up buttons")
+boot()
+ns.UI.Totem:Show()
+ns.UI.Totem:Refresh()
+local realServerTime, offset = _G.GetServerTime, 0
+_G.GetServerTime = function() return realServerTime() + offset end
+local function fireEvent(event, ...)
+  for _, f in ipairs({ unpack(stub.frames) }) do
+    local h = f._scripts.OnEvent
+    if h and f._events[event] then h(f, event, ...) end
+  end
+end
+local function chatHas(p)
+  for _, l in ipairs(stub.chat) do if tostring(l):find(p, 1, true) then return true end end
+end
+ns.db.body.acc = 125
+ns.db.body.lastTick = ns.now()
+local tf2 = ns.UI.Totem.frame
+check(tf2.pause and tf2.gotUp, "Totem has Pause and I got up buttons")
+click(tf2.pause)
+check(ns.db.body.paused, "pause click stores body.paused")
+check((ns.UI.Totem.frame.seat.text._text or ""):find("Paused 2:05"), "bar says Paused 2:05 (" .. tostring(tf2.seat.text._text) .. ")")
+offset = 3
+fireEvent("GLOBAL_MOUSE_DOWN")
+check(ns.db.body.paused, "input at +3 s: still paused")
+offset = 6
+fireEvent("GLOBAL_MOUSE_DOWN")
+check(not ns.db.body.paused, "input at +6 s: resumed")
+check(chatHas("Welcome back! Seated clock resumed."), "auto-resume prints a chat line")
+check((tf2.seat.text._text or ""):find("Seated 2:0"), "bar is back to Seated (" .. tostring(tf2.seat.text._text) .. ")")
+-- cursor movement polled every second while paused
+click(tf2.pause)
+offset = offset + 7
+local curX = 500
+_G.GetCursorPosition = function() curX = curX + 10 return curX, 400 end
+ns.Events.pausePoll() -- grace over (7 s): movement resumes
+check(not ns.db.body.paused, "cursor movement after the grace period resumes")
+-- I got up
+ns.db.body.acc = 900
+click(tf2.pause)
+click(tf2.gotUp)
+check(not ns.db.body.paused and ns.db.body.acc == 0, "I got up clears pause and resets the clock")
+check((tf2.seat.text._text or ""):find("Seated 0:0"), "seated text 0:00 after I got up (" .. tostring(tf2.seat.text._text) .. ")")
+_G.GetServerTime = realServerTime
+
+-- Collapse / expand button on the Totem.
+print("-- collapse button")
+boot()
+addFeat()
+ns.UI.Totem:Show()
+ns.UI.refreshAll()
+local tf = ns.UI.Totem.frame
+local expandedH = tf._h
+check(#visibleRows() == 2 and not ns.db.settings.totem.collapsed, "collapse: starts expanded with 2 rows")
+click(tf.collapse)
+check(ns.db.settings.totem.collapsed == true, "collapse: click sets the setting")
+check(#visibleRows() == 0, "collapse: rows hidden")
+check(tf._h < expandedH, "collapse: frame shrinks to the header (" .. tostring(expandedH) .. " -> " .. tostring(tf._h) .. ")")
+check(tf.collapse._text == "+", "collapse: button shows +")
+ns.UI.Totem:Refresh(); ns.UI.refreshAll()
+check(#visibleRows() == 0 and ns.db.settings.totem.collapsed == true, "collapse: survives Refresh")
+click(tf.collapse)
+check(ns.db.settings.totem.collapsed == false and #visibleRows() == 2 and tf._h == expandedH, "collapse: click again expands")
+ns.UI.Totem:Refresh()
+check(#visibleRows() == 2, "collapse: expanded survives Refresh")
+
 print(("ui-tests: %d passed, %d failed"):format(passed, failed))
 print(failed == 0 and "UI TESTS OK" or ("UI TESTS: " .. failed .. " failure(s)"))
 os.exit(failed == 0 and 0 or 1)

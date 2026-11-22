@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.1
+
+- New: Totem buttons to pause the seated clock while you step away (auto-resumes on any input after 5 seconds) and to reset it when you've already been up.
+- Fixed: the reminder popup now updates as you finish exercises and hides when everything is done.
+- Fixed: long exercise names are no longer cut off with "..." in the popup and Totem.
+- Fixed: the Undo popup has an OK button, and every popup has a close X that never changes your history.
+- Fixed: the reputation bar always shows reputation (no lingering exercise name or green color).
+- Fixed: the seated clock resets on login after the game was closed for 10+ minutes; time with the game closed never counts as sitting.
+- Fixed: collapsing or expanding the Totem takes effect immediately, even in combat.
+
+## 0.1.0
 
 First release, for WoW Forever (interface 16001).
 

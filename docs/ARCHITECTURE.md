@@ -38,7 +38,7 @@ ns.SelfTest ns.Sim`. Globals allowed: `StrongLikeTaurenDB`, `StrongLikeTaurenCha
   f{earn,done,skip,exp}, seatMax, play, dn, dq`. **Totals**: `db.totals{ex,g,walks,walkSec,feats,credited}`.
 - **Settings** (`db.settings`): paths from `C.OPTIONS` (e.g. `walk.every`, `filters.quiet`) plus `groupPct{group=pct}`,
   `totem{point,x,y,...}`. Validate with `C.validate(C.OPTION_BY_PATH[path], value)`.
-- **Body**: `db.body{acc, lastTick, rooted, skipUntil, earlyOffered, restDay, rage{v,lastFeatAt,src,ev,last}}`.
+- **Body**: `db.body{acc, lastTick, paused (time the seated clock was paused, nil = running), rooted, skipUntil, earlyOffered, restDay, rage{v,lastFeatAt,src,ev,last}}`.
 - **Progress**: `db.prog{rep, repDay, dailies, streak{cur,best,last}, ach{id=time}}`; standings `C.STANDINGS`.
 
 ## Scheduler (`Logic/Scheduler.lua`) — UI must go through `ns.Do`, not call it directly
@@ -47,7 +47,7 @@ ns.SelfTest ns.Sim`. Globals allowed: `StrongLikeTaurenDB`, `StrongLikeTaurenCha
 `undo(db,rowId,before)`, `credit(db,now,env,src)`, `undoCredit(db,rowId,prevAcc)`, `forceWalk(db,now,env)`,
 `manualLog(db,x,amount,now,env)`, `snooze(db,min,now)`, `snoozeInstance(db)`, `pause(db,sec,now)`, `resume(db)`,
 `ack(db)`, `rageEvent(db,kind,now)`, `setRestDay(db,on,now)`, `status(db,now,ctx)`, `gate(db,now,ctx)`,
-`seatedNow(db,now,ctx)` (extrapolates at most `S.TICK_CAP`=20 s past lastTick), `deliverable(db,now)`,
+`pauseClock(db,now)`→bool (sets `body.paused`=time, banks <=1 tick of acc) / `resumeClock(db,now)`→pause seconds|nil (continues the clock, not a break; no away credit for the paused time), `seatedNow(db,now,ctx)` (extrapolates at most `S.TICK_CAP`=20 s past lastTick; frozen `acc` while paused), `deliverable(db,now)`,
 `login(db,now,env,isReload)` (gap since saved logout: 10+ min => fresh stretch + Walkabout dropped; shorter => acc kept,
 offline time not added; reload keeps counting; run via `ns.Do.login` at PLAYER_LOGIN and PLAYER_ENTERING_WORLD).
 
@@ -68,7 +68,7 @@ offline time not added; reload keeps counting; run via `ns.Do.login` at PLAYER_L
 
 ## `ns.Do` facade (`Core/Actions.lua`) — the only way UI changes state
 `tick() moment(kind) complete(itemId,idx,amount) skip(itemId,idx) swap(itemId,idx)→ok,why snooze(min) snoozeInstance()
-pause(sec) pauseSession() resume() forceWalk() gotUp() manualLog(x,amount)→ok,err undo(doneAction)
+pause(sec) pauseSession() resume() pauseClock() resumeClock(auto) forceWalk() gotUp() manualLog(x,amount)→ok,err undo(doneAction)
 undoCredit(rowId,prevAcc) answerAway(yes) setRestDay(on) setSetting(path,value)→stored setGroupPct(group,pct|nil)
 libraryChanged() deleteRow(rowId) ack()`. Plus helpers: `ns.dispatch(acts)`, `ns.UI.refreshAll()`, `ns.say(msg)`
 (chat line with a gold "Strong Like Tauren:" prefix), `ns.quip(kind, ...)`, `ns.sound(role)` (first existing
@@ -91,6 +91,7 @@ Secret values: `if issecretvalue and issecretvalue(v) then return nil end` (wrap
 - Rage: QUEST_TURNED_IN→quest, PLAYER_LEVEL_UP→level, PLAYER_DEAD→death, ENCOUNTER_END success==1→boss,
   ZONE_CHANGED_NEW_AREA (not on taxi, `Api.mapId()` not yet in `ns.cdb.zones`) → zone, UNIT_SPELLCAST_SUCCEEDED
   (player, `C.HEARTH_SPELLS[spellID]`) → hearth. Payloads are triggers only — never stored.
+- Paused clock: `E.pausePoll` (1 s ticker, works only while `body.paused`) polls the cursor; any input signal seen more than 5 s after pausing calls `ns.Do.resumeClock(true)` ("Welcome back!" chat line). Tick while paused: no acc, no passive Rage, no away tracking, no delivery; `S.gate().paused` is true.
 - Ticker: `C_Timer.NewTicker(15, ns.Do.tick)`. PLAYER_LOGOUT: `ns.db.body.lastTick = ns.now()`.
 
 ## UI modules (`ns.UI.*`)
@@ -100,7 +101,7 @@ Secret values: `if issecretvalue and issecretvalue(v) then return nil end` (wrap
   `Bar(parent,w,h,color)` (StatusBar with `.text`), `Text(parent,font,text,color)`, `Header(parent,text)`,
   `Scroll(parent,w,h)`→scroll,content, `EditBox(parent,w,h,multiline)`, `Tooltip(owner,lines)`. Builders that bind
   data return objects with `:Refresh()`. Every panel gets a **solid background texture** under its backdrop.
-- `Totem` (`:Init :Refresh :Show :Hide :ResetPosition`), `Toast` (`:Show(w,f,moment) :Achievement(a)
+- `Totem` (header has fixed 14 px Pause/Play and "I got up" icon buttons next to the seated bar; collapse button applies immediately even in combat; `:Init :Refresh :Show :Hide :ResetPosition`), `Toast` (`:Show(w,f,moment) :Achievement(a)
   :Message(title,text,icon) :Hide`), `Countdown` (`:Start(itemId,idx) :Stop`), `Prompts` (`:AskAway :Credit :Offer
   :Partial(itemId,idx) :Undo`), `MinimapButton` (`:Init :Refresh`).
 - `Main` (`:Toggle(tab) :Show(tab) :Hide :Refresh :IsShown`), tabs `today history exercises settings health`, each

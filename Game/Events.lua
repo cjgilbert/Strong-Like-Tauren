@@ -17,9 +17,40 @@ local function moment(kind)
   if ns.Do and ns.Do.moment then ns.Do.moment(kind) end
 end
 
+local PAUSE_GRACE = 5 -- seconds after pausing during which input is ignored (clicking Pause is itself input)
+
+-- Input while the seated clock is paused resumes it, once the grace period is over.
+local function inputWhilePaused(t)
+  local p = ns.db and ns.ready and ns.db.body.paused
+  if p and t - p > PAUSE_GRACE then ns.Do.resumeClock(true) end
+end
+
 local function noteInput()
-  ctx.lastInput = now()
+  local t = now()
+  ctx.lastInput = t
+  inputWhilePaused(t)
   if ctx.away and primed then E.tick() end -- coming back: process the return right away
+end
+
+-- True when the cursor moved since the last poll.
+local function cursorMoved()
+  local cx, cy = Api.cursor()
+  if cx and (cx ~= lastCx or cy ~= lastCy) then
+    local moved = lastCx ~= nil
+    lastCx, lastCy = cx, cy
+    return moved
+  end
+  return false
+end
+
+-- Runs every second, but does work only while the seated clock is paused (cursor movement resumes it).
+function E.pausePoll()
+  if not (ns.ready and ns.db and ns.db.body.paused) then return end
+  local t = now()
+  if cursorMoved() then
+    ctx.lastInput = t
+    inputWhilePaused(t)
+  end
 end
 
 local function rage(kind)
@@ -41,10 +72,9 @@ function E.poll()
   ctx.dead = Api.dead()
 
   -- cursor movement counts as input
-  local cx, cy = Api.cursor()
-  if cx and (cx ~= lastCx or cy ~= lastCy) then
-    if lastCx ~= nil then ctx.lastInput = t end
-    lastCx, lastCy = cx, cy
+  if cursorMoved() then
+    ctx.lastInput = t
+    inputWhilePaused(t)
   end
   ctx.lastInput = ctx.lastInput or t
 
@@ -165,7 +195,10 @@ function H.UNIT_SPELLCAST_SUCCEEDED(unit, _, spellId)
 end
 
 function H.UNIT_SPELLCAST_START(unit)
-  if Api.safe(unit) == "player" then ctx.lastInput = now() end
+  if Api.safe(unit) == "player" then
+    ctx.lastInput = now()
+    inputWhilePaused(ctx.lastInput)
+  end
 end
 
 local function pollNow()
@@ -207,4 +240,5 @@ function E.start()
   E.poll()
   primed = true
   E.ticker = C_Timer.NewTicker(15, function() ns.guard(E.tick) end)
+  E.pauseTicker = C_Timer.NewTicker(1, function() ns.guard(E.pausePoll) end)
 end

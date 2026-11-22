@@ -201,6 +201,56 @@ case("seatedNow extrapolates at most one tick", function()
   near(ns.Scheduler.seatedNow(db, last + 7200, idle()), acc + ns.Scheduler.TICK_CAP, 1e-6)
 end)
 
+case("pause: 10 min paused changes nothing; resume continues; no toast", function()
+  local db, env, now = T.world()
+  local every = db.settings.walk.every * 60
+  run(db, env, now, now + every - 30) -- nearly due
+  local t = db.body.lastTick
+  local acc, rage = db.body.acc, db.body.rage.v
+  ok(ns.Scheduler.pauseClock(db, t + 5), "pauses")
+  ok(not ns.Scheduler.pauseClock(db, t + 6), "second pause is a no-op")
+  local frozen = db.body.acc
+  ok(frozen >= acc and frozen <= acc + 5 + 1e-6, "pause banks at most what was shown")
+  ok(ns.Scheduler.gate(db, t + 6, idle()).paused and not ns.Scheduler.gate(db, t + 6, idle()).may, "gate reports paused")
+  local acts = run(db, env, t + 15, t + 15 + 600, { inst = "none", away = true, awaySince = t })
+  eq(db.body.acc, frozen, "acc unchanged")
+  eq(db.body.rage.v, rage, "rage unchanged")
+  ok(not findAct(acts, "toast") and not findAct(acts, "ask") and not findAct(acts, "credit") and not findAct(acts, "due"),
+    "no toast, prompt or due while paused")
+  eq(ns.Scheduler.seatedNow(db, t + 700, idle()), frozen, "seatedNow is frozen")
+  local resumeAt = t + 15 + 600
+  ok(ns.Scheduler.resumeClock(db, resumeAt) >= 600, "resume reports pause length")
+  ok(not ns.Scheduler.resumeClock(db, resumeAt), "resume when not paused is nil")
+  ns.Scheduler.tick(db, resumeAt + 15, idle(), env)
+  near(db.body.acc, frozen + 15, 1e-6, "clock continues from where it was")
+end)
+
+case("pause: stays paused across /reload; a 10+ min gap at login clears it", function()
+  local db, env, now = T.world()
+  run(db, env, now, now + 300)
+  ns.Scheduler.pauseClock(db, db.body.lastTick)
+  local acc, at = db.body.acc, db.body.paused
+  ok(at, "paused stamp stored in body")
+  local last = db.body.lastTick
+  ns.Scheduler.login(db, last + 8, env, true)
+  eq(db.body.paused, at, "reload keeps the pause")
+  ns.Scheduler.tick(db, last + 20, idle(), env)
+  eq(db.body.acc, acc)
+  ns.Scheduler.login(db, last + 8 + 3600, env, false)
+  eq(db.body.paused, nil, "fresh login clears the pause"); eq(db.body.acc, 0)
+end)
+
+case("pause: I got up clears the pause and resets the clock", function()
+  local db, env, now = T.world()
+  run(db, env, now, now + 600)
+  ns.Scheduler.pauseClock(db, db.body.lastTick)
+  ok(db.body.acc > 0)
+  ns.Scheduler.credit(db, db.body.lastTick + 60, env, "up")
+  eq(db.body.paused, nil); eq(db.body.acc, 0)
+  ns.Scheduler.tick(db, db.body.lastTick + 15, idle(), env)
+  near(db.body.acc, 15, 1e-6, "clock runs again")
+end)
+
 case("seated: 599 s gap continues, 600 s starts fresh", function()
   local db, env, now = T.world()
   run(db, env, now, now + 600)

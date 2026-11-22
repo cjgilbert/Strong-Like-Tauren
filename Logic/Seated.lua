@@ -11,6 +11,7 @@ function Seated.fresh(B, now)
   B.skipUntil = 0
   B.earlyOffered = false
   B.rooted = 0
+  B.paused = nil -- a fresh stretch is never a paused one
 end
 
 -- 0 when no Walkabout is due; otherwise 1 + one per 15 minutes overdue ("Rooted" stacks = level - 1).

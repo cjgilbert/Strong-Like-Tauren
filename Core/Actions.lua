@@ -6,7 +6,6 @@ ns.UI = ns.UI or {}
 ns.UI.Tabs = ns.UI.Tabs or {}
 ns.ctx = ns.ctx or { combat = false, encounter = false, loading = false, dead = false, cinematic = false,
                      inst = "none", taxi = false, resting = false, away = false, pausedSession = false }
-ns.vigorUntil = 0
 
 function ns.now()
   return ns.Api.now()
@@ -121,10 +120,6 @@ end
 
 function H.skip()
   ns.say(ns.quip("skip"))
-end
-
-function H.vigor()
-  ns.vigorUntil = ns.now() + 30
 end
 
 function H.daily()

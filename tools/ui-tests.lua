@@ -270,6 +270,34 @@ check(offer and offer._shown, "offer prompt shown")
 click(offer.close)
 check(not offer._shown and snapshot() == before and not ns.Queue.get(ns.db.queue, "W"), "Offer X does not create a Walkabout")
 
+-- The Totem rep bar shows reputation only: no exercise name, no "Vigor", one fixed color, immediately and after a refresh.
+print("-- rep bar after a Walkabout")
+boot()
+addWalk()
+ns.UI.Totem:Show()
+ns.UI.refreshAll()
+local repBar = ns.UI.Totem.frame.rep
+local fixedColor = repBar._color
+local walkName = ns.env.byId.walk and ns.env.byId.walk.name
+local function checkRepBar(label)
+  local txt = repBar.text._text or ""
+  local st = ns.C.STANDINGS[ns.Progress.standing(ns.db.prog.rep)]
+  check(txt:find(ns.C.FACTION, 1, true) and txt:find(st.name, 1, true), label .. ": rep bar shows faction and standing (" .. txt .. ")")
+  check(txt:find(tostring(ns.db.prog.rep), 1, true), label .. ": rep bar shows the rep value (" .. txt .. ")")
+  check(not txt:find("Vigor", 1, true) and not (walkName and txt:find(walkName, 1, true)), label .. ": rep bar has no exercise/buff name")
+  local c = repBar._color
+  local g = ns.UI.Theme and ns.UI.Theme.C and ns.UI.Theme.C.gold
+  check(c and fixedColor and c[1] == fixedColor[1] and c[2] == fixedColor[2] and c[3] == fixedColor[3], label .. ": rep bar color is fixed")
+  check(not (g and c) or (c[1] == g[1] and c[2] == g[2] and c[3] == g[3]), label .. ": rep bar color is the rep color")
+end
+click(visibleRows()[1].done)
+check(ns.db.prog.rep == ns.C.REP.walk, "walkabout Done awarded rep")
+checkRepBar("right after Done")
+ns.UI.Totem:Refresh()
+checkRepBar("after refresh")
+ns.UI.refreshAll()
+checkRepBar("after refreshAll")
+
 print(("ui-tests: %d passed, %d failed"):format(passed, failed))
 print(failed == 0 and "UI TESTS OK" or ("UI TESTS: " .. failed .. " failure(s)"))
 os.exit(failed == 0 and 0 or 1)

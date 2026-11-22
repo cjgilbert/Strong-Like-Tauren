@@ -206,8 +206,10 @@ local function repProgress()
   local rep = ns.db.prog.rep
   local st = ns.Progress.standing(rep)
   local cur, nxt = C.STANDINGS[st], C.STANDINGS[st + 1]
-  if not nxt then return 1, cur.name end
-  return (rep - cur.min) / math.max(1, nxt.min - cur.min), cur.name
+  local function n(v) return (tostring(math.floor(v)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")) end
+  if not nxt then return 1, ("%s: %s %s"):format(C.FACTION, cur.name, n(rep)) end
+  return (rep - cur.min) / math.max(1, nxt.min - cur.min),
+    ("%s: %s %s / %s"):format(C.FACTION, cur.name, n(rep), n(nxt.min))
 end
 
 function Tm:UpdateHeader()
@@ -232,15 +234,11 @@ function Tm:UpdateHeader()
   else rtxt = "Rage " .. math.floor(st.rage) end
   frame.rage.text:SetText(rtxt)
 
-  local p, standing = repProgress()
+  -- The rep bar shows reputation only: fixed color, never an exercise or buff label.
+  local p, repText = repProgress()
   frame.rep:SetValue(p)
-  if (ns.vigorUntil or 0) > t then
-    frame.rep:SetBarColor(th.C.green)
-    frame.rep.text:SetText("Earthmother's Vigor")
-  else
-    frame.rep:SetBarColor(th.C.gold)
-    frame.rep.text:SetText(standing)
-  end
+  frame.rep:SetBarColor(th.C.gold)
+  frame.rep.text:SetText(repText)
 end
 
 -- Refresh -------------------------------------------------------------------------------------------------------------------------

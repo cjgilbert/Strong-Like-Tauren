@@ -60,7 +60,6 @@ ns.SelfTest ns.Sim`. Globals allowed: `StrongLikeTaurenDB`, `StrongLikeTaurenCha
 | `offer` | `moment` | `UI.Prompts:Offer(moment)` → "Break now" → `ns.Do.forceWalk()` |
 | `done` | `row, item, slot, finished, undo, manual` | `UI.Prompts:Undo(action)` (10 s), sound `done`, a `done` quip |
 | `skip` | `item` | a `skip` quip, refresh |
-| `vigor` | – | Totem shows the "Earthmother's Vigor" buff for 30 s |
 | `daily` | – | chat + `UI.Toast:Message(...)` "Daily complete" |
 | `standing` | `name` | chat "You are now <name> with the Bloodhoof Athletic Club.", sound `achieve` |
 | `achieve` | `a` | `UI.Toast:Achievement(a)`, sound `achieve` |

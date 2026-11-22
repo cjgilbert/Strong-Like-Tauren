@@ -63,6 +63,7 @@ function methods.GetStringHeight(self)
 end
 function methods.GetText(self) return self._text or "" end
 function methods.SetValue(self, v) self._value = v end
+function methods.SetStatusBarColor(self, r, g, b) self._color = { r, g, b } end
 function methods.GetValue(self) return self._value or 0 end
 function methods.SetMinMaxValues(self, a, b) self._min, self._max = a, b end
 function methods.GetMinMaxValues(self) return self._min or 0, self._max or 100 end

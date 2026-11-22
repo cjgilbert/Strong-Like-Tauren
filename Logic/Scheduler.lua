@@ -7,7 +7,7 @@ local Picker, Progress, Library = ns.Picker, ns.Progress, ns.Library
 -- Every function returns a list of action tables; the UI (or the simulator) carries them out:
 --   toast {w, f, moment}   ask {dur}   credit {row, prevAcc, dur}   offer {moment}   due {item}
 --   feat {item, flavor, merged}   rooted {n}   done {row, item, finished, undo}   skip {item}
---   vigor   daily   standing {name}   achieve {a}   expired {item}   fresh   rageCapped {left}
+--   daily   standing {name}   achieve {a}   expired {item}   fresh   rageCapped {left}
 --
 -- ctx (game context): combat, encounter, loading, dead, cinematic, inst ("none"|"party"|"raid"|"pvp"|"arena"|
 --   "scenario"), taxi, resting, away, awaySince, settleUntil, pausedSession
@@ -285,7 +285,6 @@ function S.complete(db, itemId, idx, amount, now, env)
       before.credRow = History.append(db, { t = now, d = dayKey, x = W.slots[1].x, k = "s", a = 0, l = 0, o = "cred",
                                             s = "move", c = env.char, q = W.id }).id
     end
-    push(acts, { t = "vigor" })
   end
 
   local after = Progress.standing(db.prog.rep)

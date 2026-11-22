@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Christopher Gilbert
+Copyright (c) 2026 Chris Gilbert
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+------------------------------------------------------------------------------
+
+Name, logo and artwork (not covered by the MIT License above)
+
+The MIT License above covers the source code only. The "Strong Like Tauren"
+name and logo, and all artwork in the Media/, art/ and docs/logo.png
+locations, are not licensed under MIT and remain all rights reserved.
+
+World of Warcraft is a trademark of Blizzard Entertainment, Inc. Strong Like
+Tauren is an independent project and is not affiliated with or endorsed by
+Blizzard Entertainment.

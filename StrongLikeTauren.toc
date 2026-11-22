@@ -1,0 +1,61 @@
+## Interface: 16001
+## Title: |cffd4a852Strong Like Tauren|r
+## Notes: A smart workout buddy for WoW Forever: breaks up your sitting every 30 minutes, turns questing into bonus sets, and never interrupts a fight.
+## Author: Chris Gilbert
+## Version: 0.1.0
+## IconTexture: Interface\AddOns\StrongLikeTauren\Media\SLT_Icon
+## SavedVariables: StrongLikeTaurenDB
+## SavedVariablesPerCharacter: StrongLikeTaurenCharDB
+## AddonCompartmentFunc: StrongLikeTauren_OnCompartmentClick
+## AddonCompartmentFuncOnEnter: StrongLikeTauren_OnCompartmentEnter
+## AddonCompartmentFuncOnLeave: StrongLikeTauren_OnCompartmentLeave
+
+Locales\enUS.lua
+
+Core\Util.lua
+Core\Const.lua
+
+Data\Exercises.lua
+Data\Quips.lua
+Data\Achievements.lua
+Data\Health.lua
+
+Logic\Library.lua
+Logic\History.lua
+Logic\Fatigue.lua
+Logic\Rage.lua
+Logic\Seated.lua
+Logic\Picker.lua
+Logic\Queue.lua
+Logic\Progress.lua
+Logic\Codec.lua
+Logic\Scheduler.lua
+
+Store\DB.lua
+
+Game\Api.lua
+Core\Actions.lua
+
+UI\Theme.lua
+UI\Toast.lua
+UI\Countdown.lua
+UI\Prompts.lua
+UI\Totem.lua
+UI\MinimapButton.lua
+UI\MainWindow.lua
+UI\TabToday.lua
+UI\TabHistory.lua
+UI\TabExercises.lua
+UI\TabSettings.lua
+UI\TabHealth.lua
+UI\Share.lua
+UI\FirstRun.lua
+UI\Options.lua
+
+Game\Events.lua
+Core\Commands.lua
+
+Test\SelfTest.lua
+Test\Sim.lua
+
+Core\Init.lua

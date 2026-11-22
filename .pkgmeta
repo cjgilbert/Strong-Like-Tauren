@@ -1,0 +1,14 @@
+package-as: StrongLikeTauren
+
+ignore:
+  - art
+  - docs
+  - tools
+  - release.ps1
+  - dist
+  - .gitignore
+  - Media/icon.png
+  - Media/icon.svg
+  - Media/icon.tga
+  - Media/logo.png
+  - Media/logo.svg

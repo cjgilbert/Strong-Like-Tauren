@@ -295,9 +295,14 @@ local function collect()
   if not (ns.db and ns.db.queue) then return end
   snoozedNow = ns.Scheduler.snoozed(ns.db, ns.now(), ns.ctx or {})
   if snoozedNow then return end -- a snooze hides the work completely
+  -- Under "with the next Walkabout" a lone Feat stays out of the Totem until it is deliverable (so work never shows
+  -- without its reminder).
+  local _, dF = ns.Scheduler.deliverable(ns.db, ns.now())
   for _, it in ipairs(ns.Queue.list(ns.db.queue)) do
-    for idx, sl in ipairs(it.slots) do
-      if not sl.o and #entries < MAX_ROWS then entries[#entries + 1] = { item = it, idx = idx, slot = sl } end
+    if it.k ~= "F" or it == dF then
+      for idx, sl in ipairs(it.slots) do
+        if not sl.o and #entries < MAX_ROWS then entries[#entries + 1] = { item = it, idx = idx, slot = sl } end
+      end
     end
   end
 end
@@ -432,7 +437,12 @@ function Tm:Init()
     if acc >= 1 then
       acc = 0
       if ns.ready and ns.db and ns.Scheduler.snoozed(ns.db, ns.now(), ns.ctx or {}) ~= snoozedNow then
-        ns.guard(Tm.Refresh, Tm) -- a snooze began or ended
+        if snoozedNow then
+          ns.guard(ns.Do.tick) -- a snooze ended: run one scheduler tick so the reminder shows as the rows reappear
+          ns.guard(Tm.Refresh, Tm)
+        else
+          ns.guard(Tm.Refresh, Tm) -- a snooze began
+        end
       elseif ns.ready and ns.db and (holdText() ~= nil) ~= holdReserved then
         ns.guard(Tm.Refresh, Tm) -- reminders went on hold or came off hold (re-layout waits for combat to end)
       end

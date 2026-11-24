@@ -700,6 +700,94 @@ case("scheduler: snooze hides work, ends with one prompt delivery that still res
   ok(not db2.nudge.snoozeEnd, "flag cleared after delivery")
 end)
 
+-- New work, reminders and the nudge log ---------------------------------------------------------------------
+local function toastTimes(acts, t0)
+  local out = {}
+  for _, a in ipairs(acts) do if a.t == "toast" then out[#out + 1] = (a.at - t0) / 60 end end
+  return out
+end
+
+case("scheduler: a Feat alone is delivered right away with default settings", function()
+  local db, env, now = T.world()
+  eq(db.settings.feat.delivery, "asap", "default")
+  db.body.rage.v = 100; db.body.rage.lastFeatAt = 0
+  local acts = ns.Scheduler.tick(db, now + 15, idle(), env)
+  local t = findAct(acts, "toast")
+  ok(t and t.f and not t.w, "Feat toast on the very tick it was earned")
+  ok(not db.nudge.fresh, "fresh cleared by delivery")
+  -- "walk" keeps the old wait: nothing is deliverable (and nothing shows) until 30 minutes have passed
+  local db2, env2 = T.world()
+  db2.settings.feat.delivery = "walk"
+  db2.body.rage.v = 100; db2.body.rage.lastFeatAt = 0
+  acts = ns.Scheduler.tick(db2, now + 15, idle(), env2)
+  ok(ns.Queue.get(db2.queue, "F") and not findAct(acts, "toast"), "walk: Feat held back")
+  ok(not db2.nudge.fresh, "fresh cleared when nothing was deliverable")
+  local w, f = ns.Scheduler.deliverable(db2, now + 15 + 1800)
+  ok(f and not w, "walk: deliverable after 30 min")
+end)
+
+case("scheduler: a new Walkabout is reminded even right after another reminder; re-nudges keep the backoff", function()
+  local db, env, now = T.world()
+  local due = now + 30 * 60
+  db.nudge.lastAt = due - 180 -- last reminder 3 minutes before the Walkabout appears
+  local times = {}
+  for t = now, now + 4 * 3600, 15 do
+    db.body.rage.v = 0 -- keep Feats out of this test
+    for _, a in ipairs(ns.Scheduler.tick(db, t, idle(), env)) do
+      if a.t == "toast" then times[#times + 1] = (t - now) / 60 end
+    end
+  end
+  eq(times[1], 30, "fresh Walkabout reminded at once despite the limiter")
+  eq(times[2] - times[1], 20, "then 20 min")
+  eq(times[3] - times[2], 40, "then 40 min")
+  eq(times[4] - times[3], 60, "then 60 min")
+  eq(times[5] - times[4], 60, "and it stays at 60")
+end)
+
+case("scheduler: new work while the game is busy waits, then one reminder at the first safe tick", function()
+  local db, env, now = T.world()
+  db.body.rage.v = 100; db.body.rage.lastFeatAt = 0
+  local acts = run(db, env, now + 15, now + 15 + 120, { inst = "none", combat = true })
+  ok(findAct(acts, "feat") and not findAct(acts, "toast"), "Feat earned in combat, no toast")
+  ok(db.nudge.fresh, "new-work flag kept while blocked")
+  local t0 = now + 15 + 135
+  acts = run(db, env, t0, t0 + 300, idle())
+  eq(#toastTimes(acts, t0), 1, "exactly one toast after combat")
+  eq(toastTimes(acts, t0)[1], 0, "at the first safe tick")
+  ok(not db.nudge.fresh, "flag cleared")
+end)
+
+case("db: migration 2 turns a stored 'walk' Feat delivery into 'asap' once", function()
+  local db = ns.DB.init({ v = 1, settings = { feat = { delivery = "walk" } } }, T.T0)
+  eq(db.v, C.SCHEMA); eq(db.settings.feat.delivery, "asap", "migrated")
+  ns.DB.MIGRATIONS[2](db)
+  eq(db.settings.feat.delivery, "asap", "running it again changes nothing")
+  db.settings.feat.delivery = "walk" -- chosen on purpose after the migration
+  local db2 = ns.DB.init(db, T.T0)
+  eq(db2.settings.feat.delivery, "walk", "later choices are respected")
+  local db3 = ns.DB.init({ v = 1, settings = {} }, T.T0)
+  eq(db3.settings.feat.delivery, "asap")
+end)
+
+case("scheduler: the nudge log records shown and blocked reasons without repeating a blocked one, max 20", function()
+  local S = ns.Scheduler
+  local db, env, now = T.world()
+  run(db, env, now, now + 30 * 60 - 15, { inst = "none", combat = true }) -- nothing due yet
+  local acts = run(db, env, now + 30 * 60, now + 30 * 60 + 90, { inst = "none", combat = true })
+  local log = db.nudge.log
+  eq(#log, 1, "six blocked ticks, one entry"); eq(log[1].r, "combat"); ok(type(log[1].t) == "number")
+  run(db, env, now + 30 * 60 + 105, now + 30 * 60 + 105, idle())
+  eq(#log, 2); eq(log[2].r, "shown")
+  run(db, env, now + 30 * 60 + 120, now + 30 * 60 + 300, idle())
+  eq(#log, 3, "limiter logged once"); eq(log[3].r, "limiter")
+  -- flip between two reasons far more than 20 times
+  for i = 1, 60 do
+    S.tick(db, now + 31 * 60 + i * 15, (i % 2 == 0) and idle() or { inst = "none", combat = true }, env)
+  end
+  eq(#db.nudge.log, 20, "capped at 20")
+  for i = 2, 20 do ok(db.nudge.log[i].r ~= db.nudge.log[i - 1].r or db.nudge.log[i].r == "shown", "no repeated blocked reason") end
+end)
+
 case("progress: streak survives days off, breaks on a played day without the daily", function()
   local db = T.world()
   local function day(k, play, dq) db.days[k] = { ex = {}, g = {}, w = { due = 0, done = 0, skip = 0, cred = 0 },

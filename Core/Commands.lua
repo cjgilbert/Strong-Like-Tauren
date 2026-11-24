@@ -121,6 +121,14 @@ function handlers.debug()
     local ago = last > 0 and ("%d min ago"):format(math.floor((ns.now() - last) / 60)) or "never"
     say(("gate: may=%s why=%s; last reminder %s; limiter wait %d min"):format(tostring(g.may and true or false),
       tostring(g.why), ago, math.floor(ns.Scheduler.nudgeWait(ns.db) / 60)))
+    local log = ns.db.nudge.log
+    if type(log) == "table" and #log > 0 then
+      say("recent delivery attempts (newest first):")
+      for i = #log, math.max(1, #log - 4), -1 do
+        local e = log[i]
+        say(("  %d min ago: %s"):format(math.max(0, math.floor((ns.now() - (e.t or 0)) / 60)), tostring(e.r)))
+      end
+    end
   end
 end
 

@@ -172,7 +172,8 @@ function S.gate(db, now, ctx)
            may = s.enabled and not quiet and not away and not snoozed and not paused, why = why }
 end
 
--- What would be shown now: the Walkabout (with a Feat riding along), or a Feat alone once it has waited 30 min.
+-- What would be shown now: the Walkabout (with a Feat riding along), or a Feat alone right away ("asap", the default) or,
+-- under "walk", once it has waited 30 min.
 function S.deliverable(db, now)
   local W, F = Queue.get(db.queue, "W"), Queue.get(db.queue, "F")
   if W then return W, F end
@@ -186,16 +187,33 @@ function S.nudgeWait(db)
   return math.min(db.settings.nudge.gap * 60 * 2 ^ (N.ignored or 0), 3600)
 end
 
+S.LOG_MAX = 20
+
+-- Rolling record of delivery attempts that had something to show: {t, r} with r = "shown", "limiter" or the gate's why.
+-- A blocked attempt is only logged when its reason differs from the previous entry.
+local function logAttempt(N, now, r)
+  local log = N.log
+  if type(log) ~= "table" then log = {} N.log = log end
+  local last = log[#log]
+  if r ~= "shown" and last and last.r == r then return end
+  log[#log + 1] = { t = now, r = r }
+  while #log > S.LOG_MAX do table.remove(log, 1) end
+end
+
 function S.deliver(db, now, ctx, env, acts, moment, bypassLimiter)
   local N = db.nudge
   local W, F = S.deliverable(db, now)
-  if not W and not F then N.snoozeEnd = nil return false end
-  if not S.gate(db, now, ctx).may then return false end
-  -- a snooze that ended gets one prompt delivery (limiter bypassed once), but never past the quiet/away/pause gates
-  if N.snoozeEnd then bypassLimiter = true end
-  if not bypassLimiter and now < (N.lastAt or 0) + S.nudgeWait(db) then return false end
+  if not W and not F then N.snoozeEnd = nil N.fresh = nil return false end
+  local g = S.gate(db, now, ctx)
+  if not g.may then logAttempt(N, now, g.why or "closed") return false end
+  -- new work (just created / earned / back from a snooze) gets one prompt delivery with the limiter bypassed, but never
+  -- past the quiet/away/pause gates. The limiter only paces re-nudges of work the player already ignored.
+  if N.snoozeEnd or N.fresh then bypassLimiter = true end
+  if not bypassLimiter and now < (N.lastAt or 0) + S.nudgeWait(db) then logAttempt(N, now, "limiter") return false end
   N.lastAt = now
   N.snoozeEnd = nil
+  N.fresh = nil
+  logAttempt(N, now, "shown")
   N.ignored = (N.ignored or 0) + 1
   push(acts, { t = "toast", w = W, f = F, moment = moment })
   return true
@@ -273,6 +291,7 @@ function S.tick(db, now, ctx, env)
       local day = History.day(db, dayKey)
       day.w.due = day.w.due + 1
       push(acts, { t = "due", item = it })
+      db.nudge.fresh = true -- new work: its reminder bypasses the limiter once
     end
     if level - 1 > (B.rooted or 0) then
       B.rooted = level - 1
@@ -296,6 +315,7 @@ function S.tick(db, now, ctx, env)
       function(slot, factor) Picker.rescale(env.byId, slot, factor) end, double)
     local day = History.day(db, dayKey)
     day.f.earn = day.f.earn + 1
+    if created or merged then db.nudge.fresh = true end
     push(acts, { t = "feat", item = it, flavor = flavor, merged = merged, created = created })
     if double and created then
       db.prog.enraged = (db.prog.enraged or 0) + 1

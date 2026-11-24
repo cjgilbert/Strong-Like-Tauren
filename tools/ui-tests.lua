@@ -544,6 +544,58 @@ do
   _G.GetServerTime = realServerTime
 end
 
+-- New work always comes with its reminder --------------------------------------------------------------------------
+print("-- snooze end without lag, Feat right away")
+do
+  local base = realServerTime() + 20000
+  local soff = 0
+  _G.GetServerTime = function() return base + soff end
+  boot()
+  setKit()
+  if _G.StrongLikeTaurenToast then _G.StrongLikeTaurenToast._shown = false end
+  ns.ctx.settleUntil = 0
+  ns.ctx.lastInput = ns.now()
+  addWalk()
+  ns.UI.Totem:Show(); ns.UI.refreshAll()
+  ns.Do.snooze(5)
+  ns.UI.refreshAll()
+  check(#visibleRows() == 0 and not toastShown(), "snooze end (1s): hidden while snoozed")
+  local tf = ns.UI.Totem.frame
+  soff = soff + 301 -- the 15 s ticker has not run; only the Totem's own 1-second check does
+  ns.ctx.lastInput = ns.now()
+  tf._scripts.OnUpdate(tf, 1.1)
+  check(#visibleRows() == 1, "snooze end (1s): rows are back in the same step")
+  check(toastShown(), "snooze end (1s): the centered reminder shows in the same step")
+
+  -- a Feat earned with nothing else pending pops up at once with default settings
+  if _G.StrongLikeTaurenToast then _G.StrongLikeTaurenToast._shown = false end
+  boot(); setKit()
+  ns.ctx.settleUntil = 0
+  ns.ctx.lastInput = ns.now()
+  check(ns.db.settings.feat.delivery == "asap", "feat: default delivery is 'asap'")
+  ns.db.body.rage.v = 100
+  ns.db.body.rage.lastFeatAt = 0
+  soff = soff + 15
+  ns.ctx.lastInput = ns.now()
+  ns.Do.tick()
+  check(ns.Queue.get(ns.db.queue, "F") ~= nil, "feat: earned")
+  check(toastShown() and toastSlotCount() == pendingCount(), "feat: toast shown at once, no Walkabout needed")
+  check(#visibleRows() == pendingCount(), "feat: Totem rows match")
+
+  -- under 'with the next Walkabout' the Totem hides the Feat until it can be reminded
+  if _G.StrongLikeTaurenToast then _G.StrongLikeTaurenToast._shown = false end
+  boot(); setKit()
+  ns.ctx.settleUntil = 0
+  ns.db.settings.feat.delivery = "walk"
+  addFeat()
+  ns.UI.Totem:Show(); ns.UI.refreshAll()
+  check(#visibleRows() == 0, "feat (walk): not in the Totem before it is deliverable")
+  addWalk()
+  ns.UI.refreshAll()
+  check(#visibleRows() == 3, "feat (walk): shows with a Walkabout")
+  _G.GetServerTime = realServerTime
+end
+
 -- Sticky quiet flags heal themselves --------------------------------------------------------------------------
 print("-- stuck quiet flags")
 do

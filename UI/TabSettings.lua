@@ -115,7 +115,7 @@ function Settings.build(parent)
       L["Rage keeps building past a full bar, up to 200. At 200 your next Feat is a Double Feat with twice the exercises."] })
   end
   step(L["Feat expires after (hours)"], "feat.expireH", fmtInt)
-  seg({ { "walk", L["With my next Walkabout"] }, { "asap", L["As soon as it is ready"] } }, "feat.delivery")
+  seg({ { "walk", L["With the next Walkabout"] }, { "asap", L["Right away"] } }, "feat.delivery")
 
   -- Rage sources
   flow:header(L["Rage sources"])

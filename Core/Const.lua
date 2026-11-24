@@ -5,8 +5,8 @@ local L = ns.L
 local C = {}
 ns.C = C
 
-C.SCHEMA = 1
-C.VERSION = "0.1.6"
+C.SCHEMA = 2
+C.VERSION = "0.1.7"
 C.MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
 C.ICON = C.MEDIA .. "SLT_Icon"
 C.LOGO = C.MEDIA .. "SLT_Logo"
@@ -114,7 +114,7 @@ C.OPTIONS = {
   { "cap.day",          "num",  6, 2, 12, 1 },
   { "feat.slots",       "num",  2, 1, 3, 1 },
   { "feat.expireH",     "num",  3, 1, 8, 1 },
-  { "feat.delivery",    "enum", "walk", { "walk", "asap" } },
+  { "feat.delivery",    "enum", "asap", { "walk", "asap" } },
   { "nudge.gap",        "num",  10, 5, 30, 5 },
   { "nudge.sound",      "bool", true },
   { "nudge.center",     "bool", false },

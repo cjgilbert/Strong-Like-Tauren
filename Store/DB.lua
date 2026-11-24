@@ -29,6 +29,12 @@ end
 -- Per-version upgrades: MIGRATIONS[n] upgrades a version n-1 table to version n.
 DB.MIGRATIONS = {}
 
+-- v2: Feats are delivered right away by default; a stored "walk" (the old default) becomes "asap" once.
+DB.MIGRATIONS[2] = function(db)
+  local s = db.settings
+  if type(s) == "table" and type(s.feat) == "table" and s.feat.delivery == "walk" then s.feat.delivery = "asap" end
+end
+
 -- Makes every setting valid (right type, in range), keeping what the player chose where possible.
 function DB.repairSettings(s)
   if type(s) ~= "table" then s = {} end

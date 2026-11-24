@@ -83,7 +83,7 @@ local function drive(key, spec)
         rep.toasts[#rep.toasts + 1] = { min = m, w = a.w and { min = a.w.min, rooted = a.w.rooted } or nil,
           f = a.f and { bonus = a.f.bonus, merged = a.f.merged, flavor = a.f.flavor } or nil, moment = a.moment }
         if not spec.ignore then
-          for _, it in ipairs({ a.w, a.f }) do
+          for _, it in pairs({ a.w, a.f }) do
             if it then
               for i, sl in ipairs(it.slots) do
                 if not sl.o then
@@ -172,14 +172,15 @@ specs.A = {
     return ev
   end)(),
   expect = function(rep, check)
-    check("6 Walkabouts completed", rep.walks == 6, tostring(rep.walks))
+    -- Each Feat is delivered right away and completing it resets the seated clock, so Walkabouts come at 30/70/115/160.
+    check("4 Walkabouts completed", rep.walks == 4, tostring(rep.walks))
     -- Rage now banks past 100, so after the ding Feat at 40 every cooldown end finds a full bar: 40/85/130/175.
     check("Feats earned near 40/85/130/175", matches(rep.feats, { 40, 85, 130, 175 }, 3), fmt(rep.feats))
     local flav = {}
     for i, f in ipairs(rep.featFlavors) do flav[i] = f or "-" end
     check("Feats flavored level, none, level, level", #flav == 4 and flav[1] == "level" and flav[2] == "-"
       and flav[3] == "level" and flav[4] == "level", table.concat(flav, ","))
-    check("6 popups at 30,60..180", matches(rep.popups, range(30, 180, 30), 0.6), fmt(rep.popups))
+    check("8 popups: Walkabouts at 30/70/115/160, Feats right away at 40/85/130/175", matches(rep.popups, { 30, 40, 70, 85, 115, 130, 160, 175 }, 0.6), fmt(rep.popups))
     local withFeat, bonusOk = {}, true
     for _, t in ipairs(rep.toasts) do
       if t.f then
@@ -188,7 +189,7 @@ specs.A = {
         if math.abs((t.f.bonus or 0) - want) > 1e-9 then bonusOk = false end
       end
     end
-    check("Feats ride along with Walkabouts at 60/90/150/180", matches(withFeat, { 60, 90, 150, 180 }, 0.6), fmt(withFeat))
+    check("each Feat pops up on its own, the moment it is earned", matches(withFeat, { 40, 85, 130, 175 }, 0.6), fmt(withFeat))
     check("level Feats carry +25%, others none", bonusOk)
     check("no capped group above 1.5 sets in any hour", rep.maxCapped <= 1.55, ("%.2f"):format(rep.maxCapped))
   end,
@@ -217,7 +218,7 @@ specs.C = {
     return ev
   end)(),
   expect = function(rep, check)
-    check("one popup, on leaving", #rep.popups == 1 and math.abs(rep.popups[1] - 180) < 0.6, fmt(rep.popups))
+    check("two popups on leaving: held work, then the Feat earned right after", #rep.popups == 2 and math.abs(rep.popups[1] - 180) < 0.6 and math.abs(rep.popups[2] - 180) < 0.6, fmt(rep.popups))
     local t = rep.toasts[1]
     check("it holds a 5-minute Walkabout", t and t.w and t.w.min == 5, t and t.w and tostring(t.w.min))
     check("and one merged Feat at +25% (125%)", t and t.f and t.f.merged and math.abs((t.f.bonus or 0) - 0.25) < 1e-9,
@@ -247,7 +248,7 @@ specs.E = {
   name = "Never takes breaks, 4 h", minutes = 240, rage = 0, ignore = true,
   ctx = idle,
   expect = function(rep, check)
-    check("popups at 30/50/90/150/210", matches(rep.popups, { 30, 50, 90, 150, 210 }, 0.6), fmt(rep.popups))
+    check("popups at 30/50/90/150/180/240 (the 180 Feat merge is new work)", matches(rep.popups, { 30, 50, 90, 150, 180, 240 }, 0.6), fmt(rep.popups))
     check("queue never above 1 W + 1 F", rep.maxQueue <= 2 and rep.maxW <= 1 and rep.maxF <= 1, tostring(rep.maxQueue))
     check("Walkabout never over 5 min", rep.maxWalk <= 5, tostring(rep.maxWalk))
   end,

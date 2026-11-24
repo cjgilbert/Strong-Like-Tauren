@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7
+
+- Fixed: the centered reminder now appears whenever new exercises show up in the Totem, including right when a snooze ends and when a Feat is earned; the reminder backoff only applies to reminders you have ignored. Feats are now reminded right away by default (a saved "With my next Walkabout" is switched to "Right away" once).
+
 ## 0.1.6
 
 - New: extra Rage now banks up to 200 instead of going to waste; at 200 your next Feat is a Double Feat with twice the exercises (Settings: Bank extra Rage).

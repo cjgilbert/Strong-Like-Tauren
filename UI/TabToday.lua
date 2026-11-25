@@ -120,10 +120,10 @@ function Today.refresh(root)
 
   local rep = db.prog.rep or 0
   local idx, stand, nextMin = P.standing(rep)
-  local frac, rtxt = 1, ("%d"):format(rep)
+  local frac, rtxt = 1, ""
   if nextMin then
     frac = (rep - stand.min) / (nextMin - stand.min)
-    rtxt = ("%d / %d"):format(rep, nextMin)
+    rtxt = ("%d / %d"):format(rep - stand.min, nextMin - stand.min)
   end
   F.rep:Set(frac, rtxt)
   F.repLbl:SetText(stand.name .. " - " .. ns.C.FACTION)

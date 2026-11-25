@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8
+
+- Changed: reputation bars show progress within your current standing (e.g. 250 / 3,000), like the game's own reputation bars.
+
 ## 0.1.7
 
 - Fixed: the centered reminder now appears whenever new exercises show up in the Totem, including right when a snooze ends and when a Feat is earned; the reminder backoff only applies to reminders you have ignored. Feats are now reminded right away by default (a saved "With my next Walkabout" is switched to "Right away" once).

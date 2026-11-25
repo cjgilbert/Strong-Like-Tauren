@@ -402,7 +402,15 @@ local function checkRepBar(label)
   local txt = repBar.text._text or ""
   local st = ns.C.STANDINGS[ns.Progress.standing(ns.db.prog.rep)]
   check(txt:find(ns.C.FACTION, 1, true) and txt:find(st.name, 1, true), label .. ": rep bar shows faction and standing (" .. txt .. ")")
-  check(txt:find(tostring(ns.db.prog.rep), 1, true), label .. ": rep bar shows the rep value (" .. txt .. ")")
+  do
+    local i = ns.Progress.standing(ns.db.prog.rep)
+    local cur, nxt = ns.C.STANDINGS[i], ns.C.STANDINGS[i + 1]
+    if nxt then
+      local function com(v) return (tostring(math.floor(v)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")) end
+      local want = com(ns.db.prog.rep - cur.min) .. " / " .. com(nxt.min - cur.min)
+      check(txt:find(want, 1, true), label .. ": rep bar shows rep within the standing (" .. want .. " in " .. txt .. ")")
+    end
+  end
   check(not txt:find("Vigor", 1, true) and not (walkName and txt:find(walkName, 1, true)), label .. ": rep bar has no exercise/buff name")
   local c = repBar._color
   local g = ns.UI.Theme and ns.UI.Theme.C and ns.UI.Theme.C.gold
@@ -416,6 +424,25 @@ ns.UI.Totem:Refresh()
 checkRepBar("after refresh")
 ns.UI.refreshAll()
 checkRepBar("after refreshAll")
+
+-- Standing boundary and Exalted: the number is progress within the standing, not total rep.
+do
+  local saved = ns.db.prog.rep
+  ns.db.prog.rep = 500
+  ns.UI.Totem:Refresh()
+  local t1 = repBar.text._text or ""
+  check(t1:find("Hostile", 1, true) and t1:find("0 / 1,000", 1, true) and not t1:find("500", 1, true), "rep 500 reads 0 / 1,000 in the new standing (" .. t1 .. ")")
+  ns.db.prog.rep = 3250
+  ns.UI.Totem:Refresh()
+  local t2 = repBar.text._text or ""
+  check(t2:find("250 / 3,000", 1, true), "rep 3250 reads 250 / 3,000 (" .. t2 .. ")")
+  ns.db.prog.rep = 50000
+  ns.UI.Totem:Refresh()
+  local t3 = repBar.text._text or ""
+  check(t3:find("Exalted", 1, true) and not t3:find(" / ", 1, true), "Exalted shows no number (" .. t3 .. ")")
+  ns.db.prog.rep = saved
+  ns.UI.Totem:Refresh()
+end
 
 -- Login after the game was closed: the seated clock must not carry the old stretch or the offline gap.
 local function seatText() return ns.UI.Totem.frame.seat.text._text or "" end

@@ -223,9 +223,10 @@ local function repProgress()
   local st = ns.Progress.standing(rep)
   local cur, nxt = C.STANDINGS[st], C.STANDINGS[st + 1]
   local function n(v) return (tostring(math.floor(v)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")) end
-  if not nxt then return 1, ("%s: %s %s"):format(C.FACTION, cur.name, n(rep)) end
+  local total = ("%s (%s rep total)"):format(cur.name, n(rep))
+  if not nxt then return 1, ("%s: %s"):format(C.FACTION, cur.name), total end
   return (rep - cur.min) / math.max(1, nxt.min - cur.min),
-    ("%s: %s %s / %s"):format(C.FACTION, cur.name, n(rep), n(nxt.min))
+    ("%s: %s %s / %s"):format(C.FACTION, cur.name, n(rep - cur.min), n(nxt.min - cur.min)), total
 end
 
 -- Text for the "reminders on hold" line, or nil when nothing is pending or the gate is open / snoozed / switched off.
@@ -425,8 +426,8 @@ function Tm:Init()
   th.Tooltip(frame.lock, { "Lock position", "Locked Totems cannot be dragged." })
 
   th.Tooltip(frame.rep, function()
-    local p, name = repProgress()
-    return { "Bloodhoof Athletic Club", name .. " (" .. ns.db.prog.rep .. " rep)" }
+    local _, _, total = repProgress()
+    return { "Bloodhoof Athletic Club", total }
   end)
 
   applyPosition()

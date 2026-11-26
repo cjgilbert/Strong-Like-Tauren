@@ -31,7 +31,7 @@ end
 local function slotText(sl)
   local def = ns.env and ns.env.byId[sl.x]
   local name = def and (def.pun or def.name) or sl.x
-  local amt = ((def and def.kind == "s") or sl.walk) and U.fmtClock(sl.a) or tostring(sl.a)
+  local amt = sl.walk and U.fmtClock(sl.a) or ns.Library.amountText(def, sl.a)
   return name .. " " .. amt
 end
 

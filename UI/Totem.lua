@@ -190,7 +190,7 @@ end
 
 function amountText(def, slot)
   if def and def.kind == "s" or slot.walk then return U.fmtClock(slot.a) end
-  return "x" .. tostring(slot.a)
+  return ns.Library.amountText(def, slot.a, "x")
 end
 
 local function layoutRow(r, i, e)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.11
+
+- Changed: two-sided exercises (lunges, mountain climbers, torso twists, step jacks) are counted per side and say so (e.g. "x10 each leg"), so higher tiers never give an odd number to split; past history is converted.
+
 ## 0.1.10
 
 - Fixed: clicking Done, Skip or Swap in the Totem during combat (including your pet's) updates it right away instead of after combat ends.

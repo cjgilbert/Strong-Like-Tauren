@@ -34,7 +34,14 @@ function handlers.log(arg)
   local d = findExercise(U.trim(name))
   if not d then say(("No exercise matches '%s'."):format(name)) return end
   local ok, err = ns.Do.manualLog(d.id, tonumber(num))
-  if ok then say(("Logged %s %s."):format(num, d.pun or d.name)) else say("Could not log that (" .. tostring(err) .. ").") end
+  if ok then
+    local name = d.pun or d.name
+    if ns.Library.sideText(d) then
+      say(("Logged %s %s."):format(name, ns.Library.amountText(d, num, "x")))
+    else
+      say(("Logged %s %s."):format(num, name))
+    end
+  else say("Could not log that (" .. tostring(err) .. ").") end
 end
 
 function handlers.snooze(arg)
@@ -91,6 +98,14 @@ function handlers.stats()
   say(("Standing: %s (%d rep), streak %d (best %d), %d Walkabouts, %d Feats."):format(
     C.STANDINGS[st].name, db.prog.rep, db.prog.streak.cur or 0, db.prog.streak.best or 0,
     db.totals.walks or 0, db.totals.feats or 0))
+  local sided = {}
+  for _, def in ipairs(ns.env and ns.env.defs or {}) do
+    local n = db.totals.ex[def.id]
+    if n and n > 0 and ns.Library.sideText(def) then
+      sided[#sided + 1] = ("%s %s"):format(def.name, ns.Library.amountText(def, n))
+    end
+  end
+  if #sided > 0 then say("Lifetime, counted per side: " .. table.concat(sided, ", ") .. ".") end
 end
 
 function handlers.selftest()

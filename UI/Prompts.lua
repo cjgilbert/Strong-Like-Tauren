@@ -95,6 +95,12 @@ function Pr:Undo(action)
   local name = def and (def.pun or def.name) or row.x
   local amount = ns.Library.amountText(def, row.a)
   local p = getPrompt("Undo", -372)
+  if ns.Library.sideText(def) then
+    p:Open(("Logged: %s %s"):format(name, ns.Library.amountText(def, row.a, "x")),
+      "Undo", function() ns.Do.undo(action) end,
+      "OK", nil, 10)
+    return
+  end
   p:Open(("Logged: %s %s"):format(amount, name),
     "Undo", function() ns.Do.undo(action) end,
     "OK", nil, 10)
@@ -141,7 +147,8 @@ function Pr:Partial(itemId, idx)
   local def = ns.env.byId[sl.x]
   local timed = (def and def.kind == "s") or sl.walk
   partial.itemId, partial.idx = itemId, idx
-  partial.text:SetText(timed and "How many seconds did you do?" or "How many did you do?")
+  local side = ns.Library.sideText(def)
+  partial.text:SetText(timed and "How many seconds did you do?" or side and ("How many did you do on %s?"):format(side) or "How many did you do?")
   partial.edit:SetText(tostring(math.max(1, math.floor(sl.a / 2))))
   partial:Show()
   partial.edit:SetFocus()

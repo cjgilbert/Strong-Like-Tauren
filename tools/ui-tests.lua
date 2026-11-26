@@ -930,6 +930,35 @@ do
     "no ENRAGED! for a normal Feat")
 end
 
+-- Two-sided exercises say "each leg" / "each side" wherever an amount is shown.
+print("-- counted per side")
+boot()
+do
+  local Q = ns.db.queue
+  local it = { id = ns.Queue.newId(Q), k = "F", t = ns.now(), exp = ns.now() + 86400, bonus = 0, flavor = "quest",
+               slots = { slot("lunge", 10), slot("climbers", 8), slot("squat", 15) } }
+  Q.items[#Q.items + 1] = it
+  ns.UI.Totem:Show()
+  ns.UI.refreshAll()
+  local lr, cr, sr = rowFor("Charge Lunges"), rowFor("Thunder Bluff Climbers"), rowFor("Kodo Squats")
+  check(lr and lr.kind._text:find("x10 each leg", 1, true), "Totem row: lunges read x10 each leg (" .. tostring(lr and lr.kind._text) .. ")")
+  check(cr and cr.kind._text:find("x8 each side", 1, true), "Totem row: climbers read x8 each side (" .. tostring(cr and cr.kind._text) .. ")")
+  check(sr and sr.kind._text:find("x15", 1, true) and not sr.kind._text:find("each", 1, true), "Totem row: squats stay plain x15")
+  ns.UI.Toast:Show(nil, it, "login")
+  check(toastText():find("Charge Lunges 10 each leg", 1, true) and toastText():find("Thunder Bluff Climbers 8 each side", 1, true),
+    "reminder lists the per-side amounts (" .. toastText() .. ")")
+  ns.UI.Prompts:Partial(it.id, 1)
+  check(_G.StrongLikeTaurenPartial and _G.StrongLikeTaurenPartial.text._text:find("each leg", 1, true),
+    "partial prompt asks per leg (" .. tostring(_G.StrongLikeTaurenPartial and _G.StrongLikeTaurenPartial.text._text) .. ")")
+  ns.UI.Prompts:Partial(it.id, 3)
+  check(not _G.StrongLikeTaurenPartial.text._text:find("each", 1, true), "partial prompt for squats is plain")
+  _G.StrongLikeTaurenPartial:Hide()
+  check(ns.Do.manualLog("lunge", 12), "manual log takes the per-leg number")
+  check(ns.db.log.rows[#ns.db.log.rows].a == 12, "stored as given, never doubled")
+  check(ns.UI.Kit.amountStr(ns.env.byId.lunge, 12) == "12 each leg" and ns.UI.Kit.amountStr(ns.env.byId.squat, 12) == "12 reps",
+    "history/today amount strings")
+end
+
 print(("ui-tests: %d passed, %d failed"):format(passed, failed))
 print(failed == 0 and "UI TESTS OK" or ("UI TESTS: " .. failed .. " failure(s)"))
 os.exit(failed == 0 and 0 or 1)

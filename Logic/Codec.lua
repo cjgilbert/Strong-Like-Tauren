@@ -5,6 +5,7 @@ local C, L = ns.C, ns.L
 -- A record is comma-separated key=value pairs. Bytes outside [A-Za-z0-9.-] are escaped as ~HH (space -> +),
 -- so strings never contain WoW "|" escape codes. CCCC is a Fletcher-16 checksum (hex) of everything before the
 -- last "!". Decoding never executes anything; every record goes through Library.validate.
+-- Optional key sd = l (counted per leg) | s (per side); absent or unknown = not sided, so older strings still decode.
 local Codec = {}
 ns.Codec = Codec
 
@@ -63,6 +64,7 @@ local function encodeOne(d)
   if d.pref and d.pref ~= 2 then p[#p + 1] = "pr=" .. math.floor(d.pref) end
   if d.pct then p[#p + 1] = "pc=" .. math.floor(d.pct) end
   if d.walk then p[#p + 1] = "w=1" end
+  if d.side and d.kind ~= "s" then p[#p + 1] = "sd=" .. (d.side == "leg" and "l" or "s") end
   local t = {}
   for _, key in ipairs(C.RAGE_KINDS) do
     if d.tags and d.tags[key] then t[#t + 1] = TAG_CODE[key] end
@@ -99,6 +101,7 @@ local function decodeOne(rec)
       elseif k == "i" then d.int = v
       elseif k == "q" then d.needs = unesc(v)
       elseif k == "w" then d.walk = (v == "1")
+      elseif k == "sd" then d.side = (v == "l") and "leg" or (v == "s" and "side" or nil)
       elseif k == "off" then d.on = (v ~= "1")
       elseif k == "g" then
         for grp, w in unesc(v):gmatch("(%a+):(%d+)") do d.g[grp] = tonumber(w) / 10 end

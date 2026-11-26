@@ -341,10 +341,11 @@ function Kit.confirm(text, onYes)
   f:Show()
 end
 
--- "12 reps" / "0:30"
+-- "12 reps" / "10 each leg" / "0:30"
 function Kit.amountStr(def, amount, kind)
   local k = (def and def.kind) or kind or "r"
   if k == "s" then return ns.U.fmtClock(amount or 0) end
+  if ns.Library.sideText(def) then return ns.Library.amountText(def, amount or 0) end
   return tostring(amount or 0) .. " " .. L["reps"]
 end
 

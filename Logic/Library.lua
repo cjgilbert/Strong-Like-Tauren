@@ -1,5 +1,5 @@
 local ADDON, ns = ...
-local U, C = ns.U, ns.C
+local U, C, L = ns.U, ns.C, ns.L
 
 -- Effective exercise library = built-ins + per-exercise overrides + custom exercises.
 local Library = {}
@@ -55,6 +55,7 @@ function Library.validate(def)
   out.pun = sanitize(def.pun)
   out.desc = sanitize(def.desc, 160)
   out.kind = (def.kind == "s") and "s" or "r"
+  if out.kind == "r" and def.side then out.side = (def.side == "leg") and "leg" or "side" end
   local maxAmount = out.kind == "s" and 3600 or 1000
   local std = tonumber(def.std)
   if not std or std ~= std or std <= 0 then return nil, "bad amount" end
@@ -170,11 +171,20 @@ function Library.displayName(def)
   return def.name
 end
 
--- Formats an amount with its unit: "15 Squats", "0:30".
-function Library.amountText(def, amount)
-  if not def then return tostring(amount) end
+-- "each leg" / "each side" for exercises counted per side (def.side), else nil. The one place that wording lives.
+function Library.sideText(def)
+  if not (def and def.side and def.kind ~= "s") then return nil end
+  return (def.side == "leg") and L["each leg"] or L["each side"]
+end
+
+-- Formats an amount: "15", "0:30"; reps take an optional prefix ("x15"); sided exercises read "x10 each leg".
+function Library.amountText(def, amount, prefix)
+  if not def then return (prefix or "") .. tostring(amount) end
   if def.kind == "s" then return U.fmtClock(amount) end
-  return tostring(amount)
+  local s = (prefix or "") .. tostring(amount)
+  local side = Library.sideText(def)
+  if side then s = s .. " " .. side end
+  return s
 end
 
 -- New id for a custom exercise.

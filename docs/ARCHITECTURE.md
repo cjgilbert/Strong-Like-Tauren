@@ -29,6 +29,7 @@ ns.SelfTest ns.Sim`. Globals allowed: `StrongLikeTaurenDB`, `StrongLikeTaurenCha
 
 ## Data shapes
 - **Exercise def** (`Data/Exercises.lua`, `Library.build`): `id, name, pun, desc, kind ("r"|"s"), std, lo, hi,
+  side ("leg"|"side"; reps are per leg/side, text from `Library.sideText`/`Library.amountText(def, a, prefix)` - the only place that words it; built-in overrides cannot change it),
   g {group=weight}, int, flags {jump,floor,wrist,seated}, needs, rest, pref (1-3), tags, walk, icon, on, builtin|custom,
   pct (override), primary`.
 - **Queue item** (`db.queue.items`, max one `W` and one `F`): `id, k ("W"|"F"), t, exp, min, rooted, bonus, merged,

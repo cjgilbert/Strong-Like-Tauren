@@ -100,7 +100,8 @@ local function readText(win)
     local kind, label = statusOf(d)
     local r = win.rows[i]
     win.recs[i] = { def = d, kind = kind, on = true }
-    r.label:SetText(ns.Library.displayName(d))
+    local sideNote = ns.Library.sideText(d)
+    r.label:SetText(ns.Library.displayName(d) .. (sideNote and ("  (" .. sideNote .. ")") or ""))
     r.status:SetText(label)
     r.cb:Refresh()
     r:Show()

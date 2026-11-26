@@ -35,6 +35,81 @@ DB.MIGRATIONS[2] = function(db)
   if type(s) == "table" and type(s.feat) == "table" and s.feat.delivery == "walk" then s.feat.delivery = "asap" end
 end
 
+-- v3: climbers, torso twists and step jacks are counted per side (the number is halved; lunges already were).
+-- Rows and queue slots are halved; day and lifetime totals are rebuilt from the halved rows (plus half of whatever
+-- older, already pruned rows contributed), so totals stay exactly the sum of the rows that are still kept.
+DB.PER_SIDE_CONVERTED = { climbers = true, twist = true, lowjacks = true }
+
+local function half(v)
+  if type(v) ~= "number" or v ~= v or v <= 0 then return v end
+  return math.max(1, math.floor(v / 2 + 0.5))
+end
+
+DB.MIGRATIONS[3] = function(db)
+  local conv = DB.PER_SIDE_CONVERTED
+  local oldSum, newSum, dayOld, dayNew = {}, {}, {}, {} -- lifetime per exercise; per day then exercise
+  local rows = type(db.log) == "table" and db.log.rows
+  if type(rows) == "table" then
+    for _, r in ipairs(rows) do
+      if type(r) == "table" and conv[r.x] and type(r.a) == "number" then
+        local a2 = half(r.a)
+        if r.o == "done" or r.o == "part" then
+          oldSum[r.x] = (oldSum[r.x] or 0) + r.a
+          newSum[r.x] = (newSum[r.x] or 0) + a2
+          if type(r.d) == "string" then
+            dayOld[r.d] = dayOld[r.d] or {}
+            dayNew[r.d] = dayNew[r.d] or {}
+            dayOld[r.d][r.x] = (dayOld[r.d][r.x] or 0) + r.a
+            dayNew[r.d][r.x] = (dayNew[r.d][r.x] or 0) + a2
+          end
+        end
+        r.a = a2
+      end
+    end
+  end
+  local function rebuild(old, oldTotal, new)
+    local rest = (type(old) == "number" and old or 0) - (oldTotal or 0) -- what pruned rows contributed
+    if rest < 0 then rest = 0 end
+    return (new or 0) + half(rest)
+  end
+  local T = type(db.totals) == "table" and type(db.totals.ex) == "table" and db.totals.ex
+  if T then
+    for x in pairs(conv) do
+      if T[x] ~= nil then T[x] = rebuild(T[x], oldSum[x], newSum[x]) end
+    end
+  end
+  if type(db.days) == "table" then
+    for key, day in pairs(db.days) do
+      local ex = type(day) == "table" and type(day.ex) == "table" and day.ex
+      if ex then
+        for x in pairs(conv) do
+          if type(ex[x]) == "table" then
+            ex[x].a = rebuild(ex[x].a, dayOld[key] and dayOld[key][x], dayNew[key] and dayNew[key][x])
+          end
+        end
+      end
+    end
+  end
+  local items = type(db.queue) == "table" and db.queue.items
+  if type(items) == "table" then
+    for _, it in ipairs(items) do
+      for _, sl in ipairs(type(it) == "table" and type(it.slots) == "table" and it.slots or {}) do
+        if type(sl) == "table" and conv[sl.x] then
+          sl.a, sl.done = half(sl.a), half(sl.done)
+          if type(sl.u) == "number" then sl.u = sl.u / 2 end -- unit of one set; load (l) stays the same
+        end
+      end
+    end
+  end
+  local over = type(db.lib) == "table" and type(db.lib.over) == "table" and db.lib.over
+  if over then
+    for x in pairs(conv) do
+      local o = over[x]
+      if type(o) == "table" then o.std, o.lo, o.hi = half(o.std), half(o.lo), half(o.hi) end
+    end
+  end
+end
+
 -- Makes every setting valid (right type, in range), keeping what the player chose where possible.
 function DB.repairSettings(s)
   if type(s) ~= "table" then s = {} end

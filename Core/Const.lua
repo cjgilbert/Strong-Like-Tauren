@@ -5,8 +5,8 @@ local L = ns.L
 local C = {}
 ns.C = C
 
-C.SCHEMA = 2
-C.VERSION = "0.1.10"
+C.SCHEMA = 3
+C.VERSION = "0.1.11"
 C.MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
 C.ICON = C.MEDIA .. "SLT_Icon"
 C.LOGO = C.MEDIA .. "SLT_Logo"

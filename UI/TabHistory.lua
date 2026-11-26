@@ -45,7 +45,7 @@ local function chooseExercise(root, idx)
   F.sel = ((idx - 1) % n) + 1
   local def = F.defs[F.sel]
   F.exName:SetText(ns.Library.displayName(def))
-  F.unit:SetText(def.kind == "s" and L["seconds"] or L["reps"])
+  F.unit:SetText(def.kind == "s" and L["seconds"] or ns.Library.sideText(def) or L["reps"])
   F.amount:SetText(tostring(def.std))
 end
 
@@ -82,7 +82,7 @@ function History.build(parent)
   F.count:SetPoint("TOPRIGHT", root, "TOPRIGHT", -8, -70)
 
   -- Column headings
-  local heads = { { L["When"], 4 }, { L["Exercise"], 92 }, { L["Amount"], 282 }, { L["Outcome"], 346 }, { L["Source / who"], 420 } }
+  local heads = { { L["When"], 4 }, { L["Exercise"], 92 }, { L["Amount"], 262 }, { L["Outcome"], 346 }, { L["Source / who"], 420 } }
   for _, h in ipairs(heads) do
     local fs = Kit.text(root, h[1], "GameFontNormalSmall", COL.gold, 120)
     fs:SetPoint("TOPLEFT", root, "TOPLEFT", h[2], -96)
@@ -108,8 +108,8 @@ function History.build(parent)
       return fs
     end
     r.t = col(4, 86)
-    r.x = col(92, 186)
-    r.a = col(282, 60)
+    r.x = col(92, 166)
+    r.a = col(262, 82)
     r.o = col(346, 70)
     r.s = col(420, 130)
     r.del = Kit.button(r, "x", 20, 18)

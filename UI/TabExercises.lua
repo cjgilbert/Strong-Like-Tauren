@@ -53,6 +53,7 @@ local function refreshEditor()
     ED.kind:Refresh()
     ED.int:Refresh()
     ED.walk:Refresh()
+    ED.side:Refresh()
     for _, f in ipairs(ED.flags) do f:Refresh() end
     for _, r in ipairs(ED.groups) do
       r.check:Refresh()
@@ -182,6 +183,10 @@ local function buildEditor()
     function(v) E.walk = v or nil end, 400)
   f.walk:SetPoint("TOPLEFT", box, "TOPLEFT", 0, -y)
   y = y + 30
+  f.side = Kit.check(box, L["Counted per side (reps on each leg / side)"], function() return E.side end,
+    function(v) E.side = v or nil end, 400)
+  f.side:SetPoint("TOPLEFT", box, "TOPLEFT", 0, -y)
+  y = y + 30
   f.custH = y
 
   f.msg = Kit.text(f, "", "GameFontHighlightSmall", COL.red, 440)
@@ -244,7 +249,7 @@ local function saveCustom()
   local def = {
     id = id, name = name, pun = E.pun, desc = E.desc, kind = E.kind, std = E.std, lo = E.lo, hi = E.hi,
     g = E.g, int = E.int, flags = E.flags, needs = E.needs, rest = math.floor(E.restMin * 60 + 0.5),
-    walk = E.walk, pref = E.pref, tags = old.tags, icon = old.icon,
+    walk = E.walk, pref = E.pref, tags = old.tags, icon = old.icon, side = (E.kind == "r") and E.side or nil,
   }
   local v, err = Lib.validate(def)
   if not v then
@@ -267,6 +272,7 @@ local function openEditor(id)
     E.restMin = math.floor((def.rest or 0) / 60 + 0.5)
     E.pref, E.pct, E.on = def.pref or 2, def.pct, def.on
     E.int, E.needs, E.walk = def.int or "m", def.needs, def.walk
+    E.side = def.side and true or nil
     for k, w in pairs(def.g or {}) do E.g[k] = w end
     for k, v in pairs(def.flags or {}) do E.flags[k] = v end
     ED.title:SetText((E.custom and L["Edit custom exercise"] or L["Edit exercise"]) .. ": " .. (def.name or id))

@@ -849,6 +849,96 @@ case("progress: achievements fire once", function()
   eq(#ns.Progress.checkAchievements(db, now), 0)
 end)
 
+-- Counted per side ---------------------------------------------------------------------------------------
+case("library: sided exercises read 'each leg' / 'each side', others and timed ones do not", function()
+  local L = ns.Library
+  local _, byId = L.build(ns.D.EXERCISES, {})
+  eq(byId.lunge.side, "leg"); eq(byId.lunge.std, 10)
+  for _, id in ipairs({ "climbers", "twist", "lowjacks" }) do eq(byId[id].side, "side", id) end
+  eq(byId.climbers.std, 10); eq(byId.twist.std, 10); eq(byId.lowjacks.std, 12)
+  eq(L.amountText(byId.lunge, 10, "x"), "x10 each leg")
+  eq(L.amountText(byId.climbers, 8), "8 each side")
+  eq(L.amountText(byId.squat, 15, "x"), "x15"); eq(L.amountText(byId.squat, 15), "15")
+  eq(L.amountText(byId.plank, 30), "0:30")
+  eq(L.sideText(byId.squat), nil)
+  eq(L.sideText({ kind = "s", side = "side" }), nil, "seconds are never sided")
+  -- built-in overrides cannot change the side
+  local _, b2 = L.build(ns.D.EXERCISES, { over = { lunge = { side = "side", std = 12 }, squat = { side = "leg" } } })
+  eq(b2.lunge.side, "leg"); eq(b2.lunge.std, 12); eq(b2.squat.side, nil)
+  -- custom exercises
+  eq(L.validate({ id = "cx1", kind = "r", std = 10, g = { legs = 1 }, side = "side" }).side, "side")
+  eq(L.validate({ id = "cx1", kind = "r", std = 10, g = { legs = 1 }, side = "leg" }).side, "leg")
+  eq(L.validate({ id = "cx1", kind = "s", std = 10, g = { legs = 1 }, side = "side" }).side, nil, "not for seconds")
+  eq(L.validate({ id = "cx1", kind = "r", std = 10, g = { legs = 1 } }).side, nil)
+end)
+
+case("codec: the per-side field round-trips and old strings stay not sided", function()
+  local def = { id = "csided1", name = "Side kicks", kind = "r", std = 10, g = { legs = 1 }, side = "side" }
+  local back = assert(ns.Codec.decode(ns.Codec.encode({ def })))
+  eq(back[1].side, "side")
+  def.side = "leg"
+  eq(assert(ns.Codec.decode(ns.Codec.encode({ def })))[1].side, "leg")
+  def.side = nil
+  local str = ns.Codec.encode({ def })
+  ok(not str:find("sd=", 1, true), "no key when not sided")
+  eq(assert(ns.Codec.decode(str))[1].side, nil)
+  -- a string from an older version (no sd key) and one with an unknown value
+  local body = "SLT1!id=cold1,n=Old,k=r,s=10,g=legs:10,i=m"
+  eq(assert(ns.Codec.decode(body .. "!" .. ns.Codec.checksum(body)))[1].side, nil)
+  body = "SLT1!id=cold1,n=Old,k=r,s=10,g=legs:10,i=m,sd=zzz,future=1"
+  eq(assert(ns.Codec.decode(body .. "!" .. ns.Codec.checksum(body)))[1].side, nil, "unknown value = not sided")
+end)
+
+case("db: migration 3 halves climbers, twists and step jacks everywhere, leaves lunges alone", function()
+  local day1, day2 = "2026-11-20", "2026-11-21"
+  local function row(id, d, x, a, o)
+    return { id = id, t = T.T0, d = d, x = x, k = "r", a = a, l = 1, g = { core = 1 }, o = o or "done", s = "feat", p = 100, c = 1 }
+  end
+  local old = {
+    v = 2,
+    log = { seq = 7, ver = 0, rows = {
+      row(1, day1, "climbers", 21), row(2, day1, "climbers", 20), row(3, day2, "twist", 20), row(4, day2, "lunge", 15),
+      row(5, day2, "lowjacks", 1, "part"), row(6, day2, "climbers", 20, "skip"), row(7, day2, "squat", 15),
+    } },
+    days = {
+      [day1] = { ex = { climbers = { a = 41, n = 2 } }, g = {} },
+      [day2] = { ex = { twist = { a = 20, n = 1 }, lunge = { a = 15, n = 1 }, lowjacks = { a = 1, n = 1 },
+                        squat = { a = 15, n = 1 } }, g = {} },
+    },
+    totals = { ex = { climbers = 41 + 30, twist = 20, lunge = 15, lowjacks = 1, squat = 15 }, g = {} },
+    queue = { seq = 2, items = { { id = 1, k = "F", slots = {
+      { x = "climbers", a = 20, l = 1, u = 20, p = 100 }, { x = "lunge", a = 10, l = 1, u = 10, p = 100 },
+      { x = "twist", a = 7, l = 0.7, u = 10, p = 100, o = "done", done = 7 } } } } },
+    lib = { over = { climbers = { std = 30, lo = 6, hi = 120 }, lunge = { std = 12 }, lowjacks = { pct = 80 } }, custom = {} },
+  }
+  local db = ns.DB.init(old, T.T0)
+  eq(db.v, C.SCHEMA)
+  local r = db.log.rows
+  eq(r[1].a, 11, "21 -> 11 (rounds half up)"); eq(r[2].a, 10); eq(r[3].a, 10); eq(r[4].a, 15, "lunge untouched")
+  eq(r[5].a, 1, "never below 1"); eq(r[6].a, 10, "skipped rows too"); eq(r[7].a, 15, "squat untouched")
+  eq(db.totals.ex.climbers, 36, "21 from the kept rows + half of the 30 that older rows contributed")
+  eq(db.days[day1].ex.climbers.a, 21, "day total equals the sum of its rows"); eq(db.days[day1].ex.climbers.n, 2)
+  eq(db.days[day2].ex.twist.a, 10); eq(db.totals.ex.twist, 10)
+  eq(db.days[day2].ex.lowjacks.a, 1); eq(db.totals.ex.lowjacks, 1)
+  eq(db.days[day2].ex.lunge.a, 15); eq(db.totals.ex.lunge, 15); eq(db.totals.ex.squat, 15)
+  local sl = db.queue.items[1].slots
+  eq(sl[1].a, 10); near(sl[1].u, 10); eq(sl[1].l, 1, "load unchanged")
+  eq(sl[2].a, 10); eq(sl[2].u, 10, "lunge slot untouched")
+  eq(sl[3].a, 4, "7 -> 4"); eq(sl[3].done, 4); near(sl[3].l, 0.7, 1e-9)
+  local o = db.lib.over
+  eq(o.climbers.std, 15); eq(o.climbers.lo, 3); eq(o.climbers.hi, 60)
+  eq(o.lunge.std, 12, "lunge override untouched"); eq(o.lowjacks.std, nil); eq(o.lowjacks.pct, 80)
+  -- totals are exactly what the kept rows add up to when nothing was pruned
+  local sum = 0
+  for _, rw in ipairs(r) do if rw.x == "twist" and ns.History.DONE[rw.o] then sum = sum + rw.a end end
+  eq(sum, db.totals.ex.twist)
+  -- a database already at the new version is not converted again
+  local again = ns.DB.init(db, T.T0)
+  eq(again.log.rows[1].a, 11); eq(again.totals.ex.climbers, 36)
+  -- and a fresh account needs no conversion
+  eq(ns.DB.init(nil, T.T0).v, C.SCHEMA)
+end)
+
 -- Runner -----------------------------------------------------------------------------------------------
 function T.run(print)
   print = print or function() end

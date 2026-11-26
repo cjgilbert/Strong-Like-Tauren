@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.9
+
+- New: a Do now button in the Totem (and `/tauren unsnooze`) brings snoozed exercises back early.
+
 ## 0.1.8
 
 - Changed: reputation bars show progress within your current standing (e.g. 250 / 3,000), like the game's own reputation bars.

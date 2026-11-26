@@ -42,6 +42,11 @@ function handlers.snooze(arg)
   ns.Do.snooze(U.clamp(m, 1, 240))
 end
 
+function handlers.unsnooze()
+  if not ns.Scheduler.snoozed(ns.db, ns.now(), ns.ctx or {}) then say("Nothing is snoozed.") return end
+  ns.Do.unsnooze()
+end
+
 function handlers.pause(arg)
   local m = tonumber(arg)
   if m and m > 0 then ns.Do.pause(m * 60) else ns.Do.pauseSession() end
@@ -149,7 +154,7 @@ end
 
 function handlers.help()
   say("/tauren  - toggle the window")
-  say("now | up | log <n> <exercise> | snooze <min> | pause [min] | resume")
+  say("now | up | log <n> <exercise> | snooze <min> | unsnooze | pause [min] | resume")
   say("tier <critter|peon|grunt|kodo|tauren|NN> | rest on|off | stats")
   say("selftest | sim <A-F|all> | debug | bug | resetui | help")
 end

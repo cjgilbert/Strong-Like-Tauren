@@ -232,6 +232,14 @@ define("snoozeInstance", function()
   ns.UI.refreshAll()
 end)
 
+define("unsnooze", function()
+  if not S.unsnooze(ns.db, ns.now(), ns.ctx) then return false end
+  ns.say(ns.L["Back from snooze. Zug zug!"])
+  ns.dispatch(S.tick(ns.db, ns.now(), ns.ctx, ns.env))
+  ns.UI.refreshAll()
+  return true
+end)
+
 define("pause", function(sec)
   S.pause(ns.db, sec, ns.now())
   ns.say(ns.quip("paused"))

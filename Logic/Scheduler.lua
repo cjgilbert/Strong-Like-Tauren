@@ -487,6 +487,19 @@ function S.snoozeInstance(db)
   db.nudge.ignored = 0
 end
 
+-- "Do now": ends a snooze early (timed and/or "until I leave"). Flags the end like a natural expiry so the next delivery
+-- brings the rows back with the centered reminder (limiter bypassed once, gates still apply). Returns false when nothing
+-- is snoozed.
+function S.unsnooze(db, now, ctx)
+  if not S.snoozed(db, now, ctx) then return false end
+  local N = db.nudge
+  N.snoozeUntil = 0
+  N.snoozeInst = nil
+  N.snoozeEnd = true
+  N.ignored = 0
+  return true
+end
+
 function S.pause(db, seconds, now)
   db.nudge.pauseUntil = now + seconds
 end

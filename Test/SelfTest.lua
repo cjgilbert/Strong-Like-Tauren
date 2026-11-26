@@ -700,6 +700,32 @@ case("scheduler: snooze hides work, ends with one prompt delivery that still res
   ok(not db2.nudge.snoozeEnd, "flag cleared after delivery")
 end)
 
+case("scheduler: unsnooze clears both snooze kinds and the next tick delivers", function()
+  local S = ns.Scheduler
+  local db, env, now = T.world()
+  run(db, env, now, now + 30 * 60)
+  local t = now + 30 * 60
+  ok(not S.unsnooze(db, t, idle()), "unsnooze is a no-op when nothing is snoozed")
+  db.nudge.ignored = 3
+  db.nudge.lastAt = t - 120
+  S.snooze(db, 10, t)
+  ok(S.unsnooze(db, t + 5, idle()), "unsnooze returns true while snoozed")
+  ok(not S.snoozed(db, t + 5, idle()) and db.nudge.snoozeUntil == 0, "timed snooze cleared")
+  ok(db.nudge.snoozeEnd == true and db.nudge.ignored == 0, "snoozeEnd set, ignored reset")
+  local acts = run(db, env, t + 15, t + 15)
+  ok(findAct(acts, "toast"), "next tick delivers despite the limiter")
+  -- until I leave
+  local db2, env2 = T.world()
+  run(db2, env2, now, now + 30 * 60)
+  db2.nudge.lastAt = t - 120
+  S.snoozeInstance(db2)
+  local inst = { combat = false, inst = "party" }
+  ok(S.snoozed(db2, t, inst), "snoozed inside the instance")
+  ok(S.unsnooze(db2, t, inst), "unsnooze ends the instance snooze")
+  ok(db2.nudge.snoozeInst == nil and db2.nudge.snoozeEnd == true, "snoozeInst cleared, snoozeEnd set")
+  ok(not S.snoozed(db2, t, inst), "no longer snoozed")
+end)
+
 -- New work, reminders and the nudge log ---------------------------------------------------------------------
 local function toastTimes(acts, t0)
   local out = {}

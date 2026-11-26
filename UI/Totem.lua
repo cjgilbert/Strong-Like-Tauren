@@ -21,6 +21,8 @@ local UP_ICON = "Interface\\RAIDFRAME\\ReadyCheck-Ready"
 local BTN = 14 -- header icon buttons: fixed size so the header never shifts
 local HOLD_H = 14 -- fixed status line at the bottom, reserved only while reminders are on hold
 local holdReserved = false
+local SNOOZE_H = 22 -- snoozed-with-work line (text + "Do now" button), same bottom slot as the hold line
+local snoozeReserved = false
 local HOLD_WHY = {
   combat = "in combat", encounter = "boss fight", loading = "loading", dead = "dead", cinematic = "cutscene",
   settling = "just a moment", instance = "instance", away = "away",
@@ -118,7 +120,7 @@ local SWAP_WHY = {
   gone = "That one is gone.",
 }
 
-local amountText, itemLabel
+local amountText, itemLabel, pendingEntries
 
 local function buildRow(i)
   local th = theme()
@@ -238,6 +240,32 @@ local function holdText()
   return "Reminder waits: " .. (HOLD_WHY[g.why] or g.why)
 end
 
+-- Pending rows, ignoring any snooze. Under "with the next Walkabout" a lone Feat stays out of the Totem until it is
+-- deliverable (so work never shows without its reminder).
+function pendingEntries()
+  local list = {}
+  if not (ns.db and ns.db.queue) then return list end
+  local _, dF = ns.Scheduler.deliverable(ns.db, ns.now())
+  for _, it in ipairs(ns.Queue.list(ns.db.queue)) do
+    if it.k ~= "F" or it == dF then
+      for idx, sl in ipairs(it.slots) do
+        if not sl.o and #list < MAX_ROWS then list[#list + 1] = { item = it, idx = idx, slot = sl } end
+      end
+    end
+  end
+  return list
+end
+
+-- Text for the snoozed line, or nil unless a snooze is hiding pending work.
+local function snoozeText()
+  if not (ns.db and ns.ready) then return nil end
+  local t = ns.now()
+  if not ns.Scheduler.snoozed(ns.db, t, ns.ctx or {}) or #pendingEntries() == 0 then return nil end
+  local left = (ns.db.nudge.snoozeUntil or 0) - t
+  if left > 0 then return "Snoozed \194\183 " .. U.fmtDuration(left) .. " left" end
+  return "Snoozed until you leave"
+end
+
 function Tm:UpdateHeader()
   if not (frame and ns.db and ns.env) then return end
   local th = theme()
@@ -288,6 +316,10 @@ function Tm:UpdateHeader()
   local hold = holdText()
   frame.hold:SetText(hold or "")
   frame.hold:SetShown(hold ~= nil and holdReserved)
+  local sn = snoozeReserved and snoozeText() or nil
+  frame.snoozed:SetText(sn or "")
+  frame.snoozed:SetShown(sn ~= nil)
+  frame.doNow:SetShown(sn ~= nil)
 end
 
 -- Refresh -------------------------------------------------------------------------------------------------------------------------
@@ -296,16 +328,7 @@ local function collect()
   if not (ns.db and ns.db.queue) then return end
   snoozedNow = ns.Scheduler.snoozed(ns.db, ns.now(), ns.ctx or {})
   if snoozedNow then return end -- a snooze hides the work completely
-  -- Under "with the next Walkabout" a lone Feat stays out of the Totem until it is deliverable (so work never shows
-  -- without its reminder).
-  local _, dF = ns.Scheduler.deliverable(ns.db, ns.now())
-  for _, it in ipairs(ns.Queue.list(ns.db.queue)) do
-    if it.k ~= "F" or it == dF then
-      for idx, sl in ipairs(it.slots) do
-        if not sl.o and #entries < MAX_ROWS then entries[#entries + 1] = { item = it, idx = idx, slot = sl } end
-      end
-    end
-  end
+  entries = pendingEntries()
 end
 
 function Tm:Refresh()
@@ -331,9 +354,11 @@ function Tm:Refresh()
   end
   local n = collapsed and 0 or #entries
   holdReserved = holdText() ~= nil
-  frame:SetHeight(HEADER_H + n * ROW_H + (n > 0 and 4 or 0) + (holdReserved and HOLD_H or 0))
+  snoozeReserved = snoozeText() ~= nil
+  frame:SetHeight(HEADER_H + n * ROW_H + (n > 0 and 4 or 0) + (holdReserved and HOLD_H or 0)
+    + (snoozeReserved and SNOOZE_H or 0))
   self:UpdateHeader()
-  if hidden or (s.totem.hideIdle and #entries == 0) then frame:Hide() else frame:Show() end
+  if hidden or (s.totem.hideIdle and #entries == 0 and not snoozeReserved) then frame:Hide() else frame:Show() end
 end
 
 function Tm:Show()
@@ -408,6 +433,17 @@ function Tm:Init()
   frame.hold:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 10, 4)
   frame.hold:Hide()
 
+  -- Snoozed line: status text on the left, a fixed-size "Do now" button on the right (only while a snooze hides work).
+  frame.snoozed = th.Text(frame, "GameFontNormalSmall", "", th.C.amber)
+  frame.snoozed:SetHeight(12)
+  frame.snoozed:SetWordWrap(false)
+  frame.snoozed:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 10, 6)
+  frame.snoozed:Hide()
+  frame.doNow = th.Button(frame, "Do now", 56, 18, function() ns.Do.unsnooze() end)
+  frame.doNow:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -6, 3)
+  frame.doNow:Hide()
+  th.Tooltip(frame.doNow, { "Do now", "Bring back snoozed exercises now" })
+
   frame.collapse = th.Button(frame, "-", 18, 18, function()
     forceLayout = true
     ns.Do.setSetting("totem.collapsed", not ns.db.settings.totem.collapsed)
@@ -444,7 +480,7 @@ function Tm:Init()
         else
           ns.guard(Tm.Refresh, Tm) -- a snooze began
         end
-      elseif ns.ready and ns.db and (holdText() ~= nil) ~= holdReserved then
+      elseif ns.ready and ns.db and ((holdText() ~= nil) ~= holdReserved or (snoozeText() ~= nil) ~= snoozeReserved) then
         ns.guard(Tm.Refresh, Tm) -- reminders went on hold or came off hold (re-layout waits for combat to end)
       end
       if frame:IsShown() then Tm:UpdateHeader() end

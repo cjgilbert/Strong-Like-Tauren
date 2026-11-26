@@ -59,6 +59,7 @@ Principles: time drives the schedule and events add flavor; your body state is r
 | `/tauren up` | Tell the addon you got up (resets the seated clock) |
 | `/tauren log <n> <exercise>` | Log exercise you did away from the Totem, e.g. `/tauren log 20 pushups` |
 | `/tauren snooze <min>` | Snooze reminders |
+| `/tauren unsnooze` | Bring snoozed exercises back now (also the Totem's "Do now" button) |
 | `/tauren pause [min]` | Pause reminders |
 | `/tauren resume` | Resume reminders |
 | `/tauren tier <critter\|peon\|grunt\|kodo\|tauren\|NN>` | Set your intensity tier or a custom percentage |

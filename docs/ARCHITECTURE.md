@@ -45,7 +45,7 @@ ns.SelfTest ns.Sim`. Globals allowed: `StrongLikeTaurenDB`, `StrongLikeTaurenCha
 `tick(db,now,ctx,env)`, `moment(db,kind,now,ctx,env)` (kinds: taxi, rest, leave, combat, return, login),
 `complete(db,itemId,idx,amount|nil,now,env)`, `skip(db,itemId,idx|nil,now,env)`, `swap(db,itemId,idx,now,env)`,
 `undo(db,rowId,before)`, `credit(db,now,env,src)`, `undoCredit(db,rowId,prevAcc)`, `forceWalk(db,now,env)`,
-`manualLog(db,x,amount,now,env)`, `snooze(db,min,now)`, `snoozeInstance(db)`, `pause(db,sec,now)`, `resume(db)`,
+`manualLog(db,x,amount,now,env)`, `snooze(db,min,now)`, `snoozeInstance(db)`, `unsnooze(db,now,ctx)`→bool (ends both snooze kinds, sets `snoozeEnd`, resets `ignored`; false when not snoozed), `pause(db,sec,now)`, `resume(db)`,
 `ack(db)`, `rageEvent(db,kind,now)`, `setRestDay(db,on,now)`, `status(db,now,ctx)`, `gate(db,now,ctx)`, `snoozed(db,now,ctx)`→bool (timed snooze running, or "until I leave" inside an instance; the UI hides Totem rows and the reminder while true; nothing is skipped or logged),
 `pauseClock(db,now)`→bool (sets `body.paused`=time, banks <=1 tick of acc) / `resumeClock(db,now)`→pause seconds|nil (continues the clock, not a break; no away credit for the paused time), `seatedNow(db,now,ctx)` (extrapolates at most `S.TICK_CAP`=20 s past lastTick; frozen `acc` while paused), `deliverable(db,now)`,
 `login(db,now,env,isReload)` (gap since saved logout: 10+ min => fresh stretch + Walkabout dropped; shorter => acc kept,
@@ -72,7 +72,7 @@ New work: `tick` sets `nudge.fresh` when it creates a Walkabout or earns a Feat 
 | `achieve` | `a` | `UI.Toast:Achievement(a)`, sound `achieve` |
 
 ## `ns.Do` facade (`Core/Actions.lua`) — the only way UI changes state
-`tick() moment(kind) complete(itemId,idx,amount) skip(itemId,idx) swap(itemId,idx)→ok,why snooze(min) snoozeInstance()
+`tick() moment(kind) complete(itemId,idx,amount) skip(itemId,idx) swap(itemId,idx)→ok,why snooze(min) snoozeInstance() unsnooze()→bool
 pause(sec) pauseSession() resume() pauseClock() resumeClock(auto) forceWalk() gotUp() manualLog(x,amount)→ok,err undo(doneAction)
 undoCredit(rowId,prevAcc) answerAway(yes) setRestDay(on) setSetting(path,value)→stored setGroupPct(group,pct|nil)
 libraryChanged() deleteRow(rowId) ack()`. Plus helpers: `ns.dispatch(acts)`, `ns.UI.refreshAll()`, `ns.say(msg)`
@@ -114,6 +114,6 @@ Secret values: `if issecretvalue and issecretvalue(v) then return nil end` (wrap
 - `Share` (`:Export :Import`), `FirstRun` (`:Show`), `Options` (`:Register :Open`).
 
 ## Commands (`/tauren`, `/slt`)
-`(none)` toggle window · `now` · `up` · `log <n> <exercise>` · `snooze <min>` · `pause [min]` · `resume` ·
+`(none)` toggle window · `now` · `up` · `log <n> <exercise>` · `snooze <min>` · `unsnooze` · `pause [min]` · `resume` ·
 `tier <critter|peon|grunt|kodo|tauren|NN>` · `rest on|off` · `stats` · `selftest` · `sim <A-F|all>` · `debug` ·
 `bug` · `resetui` · `help`.

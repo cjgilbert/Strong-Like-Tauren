@@ -623,6 +623,52 @@ do
   _G.GetServerTime = realServerTime
 end
 
+-- Do now: bring snoozed exercises back early -------------------------------------------------------------------
+print("-- Do now button")
+do
+  local base = realServerTime() + 40000
+  local soff = 0
+  _G.GetServerTime = function() return base + soff end
+  boot(); setKit()
+  if _G.StrongLikeTaurenToast then _G.StrongLikeTaurenToast._shown = false end
+  ns.ctx.settleUntil = 0
+  ns.ctx.lastInput = ns.now()
+  local tf = ns.UI.Totem.frame
+  ns.UI.Totem:Show(); ns.UI.refreshAll()
+  check(not tf.doNow._shown and not tf.snoozed._shown, "do now: hidden when not snoozed")
+  ns.Do.snooze(10)
+  check(not tf.doNow._shown, "do now: hidden when snoozed with an empty queue")
+  addWalk(); addFeat()
+  ns.UI.refreshAll()
+  check(tf.doNow._shown and tf.snoozed._shown, "do now: line and button shown while snoozed with work")
+  check(tf.snoozed._text:find("Snoozed", 1, true) and tf.snoozed._text:find("10m left", 1, true),
+    "do now: text shows the countdown (" .. tostring(tf.snoozed._text) .. ")")
+  check(tf.doNow._text == "Do now" and #visibleRows() == 0, "do now: button labelled, rows hidden")
+  local h1 = tf._h
+  soff = soff + 65
+  ns.ctx.lastInput = ns.now()
+  tf._scripts.OnUpdate(tf, 1.1)
+  check(tf.snoozed._text:find("8m left", 1, true) or tf.snoozed._text:find("9m left", 1, true),
+    "do now: countdown updates each second (" .. tostring(tf.snoozed._text) .. ")")
+  check(tf._h == h1, "do now: countdown does not change the height")
+  if _G.StrongLikeTaurenToast then _G.StrongLikeTaurenToast._shown = false end
+  click(tf.doNow)
+  check(#visibleRows() == 3, "do now: click brings the rows back")
+  check(toastShown(), "do now: centered reminder shows")
+  check(not tf.doNow._shown and not tf.snoozed._shown and not ns.Scheduler.snoozed(ns.db, ns.now(), ns.ctx),
+    "do now: line gone, snooze ended")
+  check(tf._h < h1 + 3 * 58 + 1 and tf._h > h1, "do now: height follows the rows")
+  -- until I leave
+  ns.UI.Toast:Hide()
+  ns.ctx.inst = "party"
+  ns.Do.snoozeInstance()
+  check(tf.doNow._shown and tf.snoozed._text == "Snoozed until you leave", "do now: instance snooze text")
+  click(tf.doNow)
+  check(#visibleRows() == 3 and not tf.doNow._shown, "do now: instance snooze ends too")
+  ns.ctx.inst = "none"
+  _G.GetServerTime = realServerTime
+end
+
 -- Sticky quiet flags heal themselves --------------------------------------------------------------------------
 print("-- stuck quiet flags")
 do

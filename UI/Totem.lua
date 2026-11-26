@@ -12,10 +12,9 @@ local rows = {}
 local frame, snoozeMenu
 local snoozedNow = false
 local hidden = false
-local dirty = false
 local entries = {}
 local acc = 0
-local forceLayout = false -- a collapse/expand click is applied even in combat (these frames are not protected)
+local RAGE_W = WIDTH - 46 - 30 -- width of the Rage / rep bars (fixed; never read back from the frame)
 local PAUSE_ICON, PLAY_ICON = "Interface\\TimeManager\\PauseButton", "Interface\\TimeManager\\PlayButton"
 local UP_ICON = "Interface\\RAIDFRAME\\ReadyCheck-Ready"
 local BTN = 14 -- header icon buttons: fixed size so the header never shifts
@@ -166,6 +165,8 @@ local function buildRow(i)
     if ok == false and why then ns.say(SWAP_WHY[why] or tostring(why)) end
   end))
   r.skip = th.Button(r, "Skip", 44, 18, act(function() ns.Do.skip(r.itemId, r.idx) end))
+  -- fixed widths, so layout never reads frame geometry (safe in combat)
+  r.done._w, r.start._w, r.snooze._w, r.swap._w, r.skip._w = 50, 50, 56, 46, 44
   r.btnList = { r.done, r.start, r.snooze, r.swap, r.skip }
   th.Tooltip(r.done, { "Done", "Left-click: finished it all.", "Right-click: log a partial amount." })
   th.Tooltip(r, function()
@@ -213,7 +214,7 @@ local function layoutRow(r, i, e)
       b:ClearAllPoints()
       b:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", x, 3)
       b:Show()
-      x = x + b:GetWidth() + 3
+      x = x + b._w + 3
     end
   end
   r:Show()
@@ -295,7 +296,7 @@ function Tm:UpdateHeader()
   local bank = ns.db.settings.rage.bank
   frame.rage:SetValue(math.min(1, st.rage / 100))
   local over = bank and math.max(0, math.min(1, (st.rage - 100) / 100)) or 0
-  frame.rage.over:SetWidth(math.max(0.001, (frame.rage:GetWidth() or 0) * over))
+  frame.rage.over:SetWidth(math.max(0.001, RAGE_W * over))
   frame.rage.over:SetShown(over > 0)
   local rtxt
   local rg = math.floor(st.rage)
@@ -341,12 +342,6 @@ function Tm:Refresh()
   self:UpdateHeader()
   local collapsed = s.totem.collapsed
   frame.collapse:SetText(collapsed and "+" or "-")
-  if InCombatLockdown and InCombatLockdown() and not forceLayout then
-    dirty = true
-    return
-  end
-  forceLayout = false
-  dirty = false
   for i = 1, MAX_ROWS do
     local r = rows[i]
     if not r then r = buildRow(i); rows[i] = r end
@@ -414,7 +409,7 @@ function Tm:Init()
                                                       "Counts as a break and starts the clock from 0:00." },
     function() ns.Do.gotUp() end)
   frame.gotUp:SetPoint("TOPLEFT", frame.pause, "TOPRIGHT", 2, 0)
-  frame.rage = th.Bar(frame, WIDTH - 46 - 30, 12, th.C.rage)
+  frame.rage = th.Bar(frame, RAGE_W, 12, th.C.rage)
   frame.rage:SetPoint("TOPLEFT", 48, -24)
   frame.rage.over = frame.rage:CreateTexture(nil, "ARTWORK", nil, 2)
   frame.rage.over:SetTexture(th.WHITE)
@@ -423,7 +418,7 @@ function Tm:Init()
   frame.rage.over:SetPoint("BOTTOMLEFT", frame.rage, "BOTTOMLEFT", 0, 0)
   frame.rage.over:SetWidth(0.001)
   frame.rage.over:Hide()
-  frame.rep = th.Bar(frame, WIDTH - 46 - 30, 12, th.C.gold)
+  frame.rep = th.Bar(frame, RAGE_W, 12, th.C.gold)
   frame.rep:SetPoint("TOPLEFT", 48, -38)
 
   -- Status line shown while reminders are on hold; fixed height, one line, short strings (never truncated).
@@ -445,9 +440,7 @@ function Tm:Init()
   th.Tooltip(frame.doNow, { "Do now", "Bring back snoozed exercises now" })
 
   frame.collapse = th.Button(frame, "-", 18, 18, function()
-    forceLayout = true
     ns.Do.setSetting("totem.collapsed", not ns.db.settings.totem.collapsed)
-    forceLayout = false
   end)
   frame.collapse:SetPoint("TOPRIGHT", -6, -7)
   th.Tooltip(frame.collapse, function()
@@ -468,7 +461,7 @@ function Tm:Init()
 
   applyPosition()
 
-  -- throttled clock updates; relayout after combat
+  -- throttled clock updates
   frame:SetScript("OnUpdate", function(_, el)
     acc = acc + el
     if acc >= 1 then
@@ -481,17 +474,11 @@ function Tm:Init()
           ns.guard(Tm.Refresh, Tm) -- a snooze began
         end
       elseif ns.ready and ns.db and ((holdText() ~= nil) ~= holdReserved or (snoozeText() ~= nil) ~= snoozeReserved) then
-        ns.guard(Tm.Refresh, Tm) -- reminders went on hold or came off hold (re-layout waits for combat to end)
+        ns.guard(Tm.Refresh, Tm) -- reminders went on hold or came off hold
       end
       if frame:IsShown() then Tm:UpdateHeader() end
     end
   end)
   frame:SetScript("OnShow", function() Tm:UpdateHeader() end)
-  local ev = CreateFrame("Frame")
-  pcall(ev.RegisterEvent, ev, "PLAYER_REGEN_ENABLED")
-  ev:SetScript("OnEvent", function()
-    if dirty then ns.guard(Tm.Refresh, Tm) end
-  end)
-  Tm.eventFrame = ev
   self:Refresh()
 end

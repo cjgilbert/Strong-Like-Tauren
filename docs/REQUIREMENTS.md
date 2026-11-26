@@ -139,7 +139,7 @@ Anything due in combat or a dungeon waits in your **Totem** until you're free.
 - K4 v1 Timestamps come from `GetServerTime()` (fallback `time()`) and are clamped so they never go backwards. The day key is the local date with a 4 am rollover.
 - K5 v1 Character key: a random id stored in the per-character file and re-linked by UnitGUID after renames (names are "First Surname" and realms are hidden).
 - K6 v1 Options page via `Settings.RegisterCanvasLayoutCategory` + `RegisterAddOnCategory`, opened with `OpenToCategory(cat:GetID())`.
-- K7 v1 UI: a solid background under backdrops (the stock dialog backdrop is see-through on Forever); fixed-size Totem rows, re-laid-out only outside combat.
+- K7 v1 UI: a solid background under backdrops (the stock dialog backdrop is see-through on Forever); fixed-size Totem rows that update immediately, including in combat (plain, non-protected frames).
 - K8 v1 Event-driven; a 15 s ticker (1 s while a countdown runs); fatigue cached per minute.
 - K9 v1 Schema version with per-version migrations run in pcall. A failed migration moves the old data to `db.broken`, resets to defaults and prints one message. Defaults also repair wrong types.
 - K10 v1 Every handler runs in xpcall, logging to a 10-entry error log (`/tauren bug`). No globals beyond the saved data, slash commands and compartment function; no hooks; no protected calls.

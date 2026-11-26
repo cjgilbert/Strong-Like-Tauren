@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.10
+
+- Fixed: clicking Done, Skip or Swap in the Totem during combat (including your pet's) updates it right away instead of after combat ends.
+
 ## 0.1.9
 
 - New: a Do now button in the Totem (and `/tauren unsnooze`) brings snoozed exercises back early.

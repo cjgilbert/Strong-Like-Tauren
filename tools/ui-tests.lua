@@ -165,6 +165,23 @@ scenario("feat + walkabout", true, false)
 scenario("feat, toast shown first", false, true)
 scenario("feat + walkabout, toast shown first", true, true)
 
+-- In combat the Totem's plain frames still update at once: Done hides the row without waiting for combat to end.
+do
+  boot()
+  addFeat()
+  ns.UI.Totem:Show()
+  ns.UI.refreshAll()
+  local before = #visibleRows()
+  check(before >= 1, "combat Done: rows visible before")
+  stub.inCombat = true
+  local r = rowFor("Kodo Squats")
+  check(r ~= nil, "combat Done: Kodo row present")
+  click(r.done)
+  check(rowFor("Kodo Squats") == nil, "combat Done: Kodo row hidden immediately, no Refresh call")
+  check(#visibleRows() == before - 1, "combat Done: visible rows reduced (" .. #visibleRows() .. " of " .. before .. ")")
+  stub.inCombat = false
+end
+
 -- Buttons on the toast after everything was resolved must not log anything extra.
 print("-- toast buttons after resolve")
 boot()

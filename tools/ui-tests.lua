@@ -807,7 +807,8 @@ do
   local h0 = ns.UI.Totem.frame._h
   ns.ctx.pausedSession = true
   ns.UI.refreshAll()
-  check(hold._shown and hold._text == "Reminders paused", "totem hold: 'Reminders paused' for a paused session")
+  check(ns.UI.Totem.frame.paused._shown and ns.UI.Totem.frame.paused._text == "Reminders paused \194\183 until reload",
+    "totem hold: 'Reminders paused' line for a paused session")
   check(ns.UI.Totem.frame._h > h0, "totem hold: extra line reserves its own space")
   ns.ctx.pausedSession = false
   ns.ctx.combat = true
@@ -945,7 +946,8 @@ do
   check(cr and cr.kind._text:find("x8 each side", 1, true), "Totem row: climbers read x8 each side (" .. tostring(cr and cr.kind._text) .. ")")
   check(sr and sr.kind._text:find("x15", 1, true) and not sr.kind._text:find("each", 1, true), "Totem row: squats stay plain x15")
   ns.UI.Toast:Show(nil, it, "login")
-  check(toastText():find("Charge Lunges 10 each leg", 1, true) and toastText():find("Thunder Bluff Climbers 8 each side", 1, true),
+  check(toastText():find("Charge Lunges (Lunges) x10 each leg", 1, true)
+      and toastText():find("Thunder Bluff Climbers (Mountain climbers) x8 each side", 1, true),
     "reminder lists the per-side amounts (" .. toastText() .. ")")
   ns.UI.Prompts:Partial(it.id, 1)
   check(_G.StrongLikeTaurenPartial and _G.StrongLikeTaurenPartial.text._text:find("each leg", 1, true),
@@ -957,6 +959,230 @@ do
   check(ns.db.log.rows[#ns.db.log.rows].a == 12, "stored as given, never doubled")
   check(ns.UI.Kit.amountStr(ns.env.byId.lunge, 12) == "12 each leg" and ns.UI.Kit.amountStr(ns.env.byId.squat, 12) == "12 reps",
     "history/today amount strings")
+end
+
+-- Settings usability: renamed labels, collapsed Advanced section, one Break length control, first-run guide.
+print("-- settings usability")
+boot()
+do
+  local function find(str)
+    for _, fr in ipairs(stub.frames) do
+      if fr._text and fr._text:find(str, 1, true) then return fr end
+    end
+  end
+  local function shown(txt)
+    local fr = find(txt)
+    return fr and (fr._shown or (fr._parent and fr._parent._shown)) and true or false
+  end
+  local first = #stub.frames + 1
+  local root = ns.UI.Tabs.settings.build(_G.UIParent)
+  check(find("Also flash a big text banner") and not find("centre of the screen"), "settings: banner label renamed")
+  check(find("Wait before reminding again (if ignored)") and not find("Minimum gap between nudges"), "settings: gap label renamed")
+  check(find("Remind between pulls") and not find("Nudge between pulls"), "settings: dungeon option says reminder")
+  local bad
+  for _, fr in ipairs(stub.frames) do
+    local t = fr._text and fr._text:lower()
+    if t and (t:find("nudge", 1, true) or t:find("toast", 1, true)) then bad = fr._text end
+  end
+  check(not bad, "settings: no 'nudge'/'toast' wording (" .. tostring(bad) .. ")")
+  local n = 0
+  for i = first, #stub.frames do if stub.frames[i]._text == "Break length" then n = n + 1 end end
+  check(n == 1, "settings: exactly one Break length control (" .. n .. ")")
+  check(find("1 min minimum"), "settings: Break length note names the presets")
+  -- Advanced section
+  local sec = root.advanced
+  check(sec and sec.open == false and sec.button._text == "Advanced settings (show)", "settings: Advanced is collapsed by default")
+  check(#sec.items > 20, "settings: Advanced section tracks its controls (" .. #sec.items .. ")")
+  for _, name in ipairs({ "Per-muscle-group intensity", "Minutes of play to fill Rage", "Minimum gap between Feats",
+                          "Feat expires after (hours)", "Starting Rage", "Day starts at (hour)" }) do
+    check(find(name), "settings: Advanced has '" .. name .. "'")
+  end
+  local hCollapsed = root.content._h
+  check(not shown("Day starts at (hour)") and not shown("Minutes of play to fill Rage"), "settings: Advanced controls hidden while collapsed")
+  sec.button._scripts.OnClick(sec.button)
+  check(sec.open and sec.button._text == "Advanced settings (hide)", "settings: toggle expands")
+  check(shown("Day starts at (hour)") and shown("Minutes of play to fill Rage"), "settings: Advanced controls shown when expanded")
+  check(root.content._h > hCollapsed, "settings: scroll height grows on expand (" .. tostring(hCollapsed) .. " -> " .. tostring(root.content._h) .. ")")
+  sec.button._scripts.OnClick(sec.button)
+  check(not sec.open and root.content._h == hCollapsed and not shown("Day starts at (hour)"), "settings: collapses again")
+  -- First run
+  local samples = 0
+  local old = ns.UI.Toast.Sample
+  ns.UI.Toast.Sample = function() samples = samples + 1 end
+  ns.UI.FirstRun:Show()
+  check(find("How it works") and find("Totem tracker") and find("combat"), "first run: How it works block")
+  local btn = _G.StrongLikeTaurenFirstRun.sampleBtn
+  check(btn and btn._text == "Show me a sample reminder", "first run: sample button present")
+  btn._scripts.OnClick(btn)
+  check(samples == 1, "first run: sample button calls Toast:Sample")
+  ns.UI.Toast.Sample = old
+end
+
+-- Usability pass 2: snooze wording, pause lines, reminder Done, partial access, tooltips, Feat expiry -------------------
+print("-- usability: snooze/pause/done/partial/tooltips/expiry")
+do
+  local function tipOf(f)
+    local lines = {}
+    local gt = _G.GameTooltip
+    gt.AddLine = function(_, t) lines[#lines + 1] = t end
+    gt.AddDoubleLine = function(_, a, b) lines[#lines + 1] = tostring(a) .. " " .. tostring(b) end
+    f._scripts.OnEnter(f)
+    gt.AddLine, gt.AddDoubleLine = nil, nil
+    return table.concat(lines, "\n")
+  end
+  boot()
+  setKit()
+  ns.ctx.settleUntil = 0
+  addWalk(); addFeat()
+  ns.UI.Totem:Show(); ns.UI.refreshAll()
+  local tf = ns.UI.Totem.frame
+
+  -- 1. snooze wording
+  local row = visibleRows()[2]
+  check(tipOf(row.snooze):find("Hides all pending exercises for a while. They come back with a reminder.", 1, true),
+    "row Snooze tooltip says it hides everything")
+  click(row.snooze)
+  local menu = _G.StrongLikeTaurenSnoozeMenu
+  check(menu._shown and menu.head._text == "Hide all for:", "snooze menu header says 'Hide all for:'")
+  check(menu.btns[1]._text == "5 min" and menu.btns[2]._text == "10 min" and menu.btns[3]._text == "20 min",
+    "snooze menu keeps 5/10/20 min")
+  menu:Hide()
+
+  -- 4. every row button fits the fixed row width (WIDTH 300 - 12), with no extra "Some" button needed
+  local w = 4
+  for _, b in ipairs(row.btnList) do w = w + b._w + 3 end
+  check(w - 3 <= 300 - 12 - 4, "row buttons fit the row width (" .. (w - 3) .. ")")
+  check(row.skip._text == "Skip..." , "Skip opens a menu (label Skip...)")
+  local qf = ns.Queue.get(ns.db.queue, "F")
+  local nBefore = historyDone()
+  click(row.done, "RightButton")
+  check(_G.StrongLikeTaurenPartial and _G.StrongLikeTaurenPartial._shown, "right-click Done still opens the partial prompt")
+  _G.StrongLikeTaurenPartial:Hide()
+  local frow = rowFor("Kodo Squats") or visibleRows()[2]
+  click(frow.skip)
+  local sm = _G.StrongLikeTaurenSkipMenu
+  check(sm and sm._shown and sm.btns[1]._text == "Skip" and sm.btns[2]._text == "I did some...", "Skip menu offers Skip and I did some...")
+  click(sm.btns[2])
+  check(_G.StrongLikeTaurenPartial._shown, "'I did some...' opens the partial prompt")
+  _G.StrongLikeTaurenPartial:Hide()
+  local pend = pendingCount()
+  click(frow.skip)
+  click(_G.StrongLikeTaurenSkipMenu.btns[1])
+  check(pendingCount() == pend - 1, "menu Skip skips the exercise")
+
+  -- 5. Feat row tooltip: expiry
+  local frow2 = visibleRows()[2]
+  check(frow2 and tipOf(frow2):find("Expires in 24h 00m", 1, true), "Feat row tooltip shows time left (" .. tostring(frow2 and tipOf(frow2)) .. ")")
+  check(not tipOf(visibleRows()[1]):find("Expires", 1, true), "Walkabout row tooltip has no expiry")
+
+  -- 5. seated and Rage tooltips
+  local seatTip = tipOf(tf.seat)
+  check(seatTip:find("Seated clock", 1, true) and seatTip:find("of sitting. A Walkabout comes due at 30 min.", 1, true),
+    "seated tooltip (" .. seatTip .. ")")
+  check(not seatTip:find("Rooted", 1, true) and not seatTip:find("Paused", 1, true), "seated tooltip: no rooted/paused lines normally")
+  ns.db.body.rooted = 2
+  check(tipOf(tf.seat):find("Rooted x2: your Walkabout grows by a minute every 15 min overdue (max 5 min). Never owed.", 1, true),
+    "seated tooltip explains Rooted")
+  ns.db.body.rooted = 0
+  ns.Do.pauseClock()
+  check(tipOf(tf.seat):find("Paused while you're up.", 1, true), "seated tooltip says paused")
+  ns.Do.resumeClock()
+  local rageTip = tipOf(tf.rage)
+  check(rageTip:find("^Rage") and rageTip:find("+100 per 90 min", 1, true) and rageTip:find("one every 45 min", 1, true)
+    and rageTip:find("banked up to 200", 1, true) and not rageTip:find("Next Feat", 1, true), "rage tooltip (" .. rageTip .. ")")
+  ns.db.body.rage.v = 100
+  ns.db.body.rage.lastFeatAt = ns.now()
+  check(tipOf(tf.rage):find("Next Feat in 45m", 1, true), "rage tooltip shows the Feat cooldown")
+  ns.db.settings.rage.bank = false
+  check(not tipOf(tf.rage):find("banked", 1, true), "rage tooltip: no bank line with banking off")
+  ns.db.settings.rage.bank = true
+
+  -- 2. pause lines
+  boot(); setKit(); ns.ctx.settleUntil = 0
+  addWalk()
+  ns.UI.Totem:Show(); ns.UI.refreshAll()
+  tf = ns.UI.Totem.frame
+  local h0 = tf._h
+  ns.Do.pause(30 * 60)
+  check(tf.paused._shown and tf.paused._text == "Reminders paused \194\183 30m left" and tf.resume._shown,
+    "timed pause line + Resume (" .. tostring(tf.paused._text) .. ")")
+  check(tf._h > h0, "pause line reserves its own height")
+  click(tf.resume)
+  check(not tf.paused._shown and not tf.resume._shown and (ns.db.nudge.pauseUntil or 0) == 0 and tf._h == h0,
+    "Resume ends the timed pause and frees the slot")
+  ns.Do.pauseSession()
+  check(tf.paused._text == "Reminders paused \194\183 until reload", "session pause text")
+  click(tf.resume)
+  check(not ns.ctx.pausedSession and not tf.paused._shown, "Resume ends the session pause")
+  ns.Do.pauseClock()
+  check(tf.paused._shown and tf.paused._text == "Clock paused \194\183 getting up" and tf.resume._shown,
+    "clock pause line + Resume (" .. tostring(tf.paused._text) .. ")")
+  click(tf.resume)
+  check(ns.db.body.paused == nil and not tf.paused._shown, "Resume restarts the seated clock")
+  -- minimap tooltip wording
+  local captured = {}
+  _G.GameTooltip.AddLine = function(_, t) captured[#captured + 1] = t end
+  _G.GameTooltip.AddDoubleLine = function() end
+  ns.UI.MinimapButton:ShowTooltip(_G.UIParent)
+  local joined = table.concat(captured, "\n")
+  check(joined:find("Right-click: pause reminders", 1, true), "minimap tooltip: pause reminders")
+  captured = {}
+  ns.Do.pauseSession()
+  ns.UI.MinimapButton:ShowTooltip(_G.UIParent)
+  check(table.concat(captured, "\n"):find("Right-click: resume reminders", 1, true), "minimap tooltip: resume reminders")
+  _G.GameTooltip.AddLine, _G.GameTooltip.AddDoubleLine = nil, nil
+  ns.Do.resume()
+
+  -- 3. reminder: real name, Done for a single untimed exercise
+  boot(); setKit(); ns.ctx.settleUntil = 0
+  local Q = ns.db.queue
+  local one = { id = ns.Queue.newId(Q), k = "F", t = ns.now(), exp = ns.now() + 86400, bonus = 0, flavor = "quest",
+                slots = { slot("squat", 15) } }
+  Q.items[#Q.items + 1] = one
+  ns.UI.Totem:Show(); ns.UI.refreshAll()
+  ns.UI.Toast:Show(nil, one, "tick")
+  local ts = _G.StrongLikeTaurenToast
+  check(toastText() == "Kodo Squats (Squats) x15", "reminder shows pun and real name (" .. toastText() .. ")")
+  check(ts.go._text == "Done", "single untimed exercise: button says Done")
+  check(tipOf(ts.snooze):find("Hides all pending exercises for 10 minutes.", 1, true), "reminder Snooze 10 tooltip")
+  local d0 = historyDone("squat")
+  click(ts.go)
+  check(historyDone("squat") == d0 + 1 and not ts._shown, "Done completes it and hides the reminder")
+  local two = { id = ns.Queue.newId(Q), k = "F", t = ns.now(), exp = ns.now() + 86400, bonus = 0, flavor = "quest",
+                slots = { slot("squat", 15), slot("twist", 20) } }
+  Q.items[#Q.items + 1] = two
+  ns.UI.Toast:Show(nil, two, "tick")
+  check(ts.go._text == "Let's go", "several exercises: Let's go")
+  ns.Queue.remove(Q, two.id)
+  local timed = { id = ns.Queue.newId(Q), k = "F", t = ns.now(), exp = ns.now() + 86400, bonus = 0, flavor = "quest",
+                  slots = { slot("plank", 30) } }
+  Q.items[#Q.items + 1] = timed
+  ns.UI.Toast:Show(nil, timed, "tick")
+  check(ts.go._text == "Let's go", "single timed exercise: Let's go")
+  ns.Queue.remove(Q, timed.id)
+  ts:Hide()
+  ns.UI.Toast:Sample()
+  check(toastText():find("Kodo Squats (Squats) x15", 1, true) and ts.go._text == "Let's go", "sample matches the new format")
+  ts:Hide()
+
+  -- 9. Feat expiry says so in chat; Walkabouts never do
+  boot(); setKit(); ns.ctx.settleUntil = 0
+  Q = ns.db.queue
+  local old = { id = ns.Queue.newId(Q), k = "F", t = ns.now() - 7200, exp = ns.now() - 1, bonus = 0, flavor = "quest",
+                slots = { slot("squat", 15) } }
+  Q.items[#Q.items + 1] = old
+  stub.chat = {}
+  local acts = ns.Scheduler.tick(ns.db, ns.now(), ns.ctx, ns.env)
+  local sawExp = false
+  for _, a in ipairs(acts) do if a.t == "expired" and a.item.k == "F" then sawExp = true end end
+  check(sawExp, "tick emits an expired action for a Feat")
+  ns.dispatch(acts)
+  local said = false
+  for _, m in ipairs(stub.chat) do if m:find("expired", 1, true) then said = true end end
+  check(said, "expiry prints a chat line")
+  stub.chat = {}
+  ns.dispatch({ { t = "expired", item = { k = "W", slots = {} } } })
+  check(#stub.chat == 0, "no chat line for a Walkabout")
 end
 
 print(("ui-tests: %d passed, %d failed"):format(passed, failed))

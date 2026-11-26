@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.12
+
+- Changed: the centered reminder shows each exercise's real name next to its pun (e.g. "Charge Lunges (Lunges) x10 each leg"), and a single untimed exercise gets a Done button right on the reminder.
+- Changed: the Totem's Skip button is now "Skip..." with "Skip" and "I did some..." (log a partial amount); right-click Done still works too.
+- Changed: the Totem's bottom line tells the pauses apart ("Clock paused · getting up", "Reminders paused · 30m left" or "until reload"), each with a Resume button; the minimap tooltip says what right-click does.
+- Changed: the snooze menu says "Hide all for:", and the Snooze tooltips explain that snoozing hides every pending exercise.
+- New: tooltips on the seated clock and Rage bars explain Walkabouts, Rooted, Rage sources, banking and the Feat cooldown; Feat tooltips show when they expire, and an expired Feat says so in chat (no penalty).
+- Changed: Settings is shorter, with fine-tuning under "Advanced settings"; clearer names ("Also flash a big text banner", "Wait before reminding again (if ignored)"); one Break length control.
+- New: first-run setup explains where reminders and the Totem appear and has a "Show me a sample reminder" button.
+
 ## 0.1.11
 
 - Changed: two-sided exercises (lunges, mountain climbers, torso twists, step jacks) are counted per side and say so (e.g. "x10 each leg"), so higher tiers never give an odd number to split; past history is converted.

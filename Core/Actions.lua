@@ -150,6 +150,14 @@ function H.done(a)
   if ns.UI.Prompts then ns.UI.Prompts:Undo(a) end
 end
 
+-- Only Feats expire (Walkabouts have no expiry), so say so once instead of letting a Feat vanish silently.
+function H.expired(a)
+  if a.item and a.item.k == "F" then
+    local line = ns.quip("featExpired")
+    if line ~= "" then ns.say(line) end
+  end
+end
+
 function H.skip()
   ns.say(ns.quip("skip"))
 end

@@ -28,7 +28,8 @@ function M:ShowTooltip(owner, anchor)
     GameTooltip:AddLine("Loading...", 1, 1, 1)
   end
   GameTooltip:AddLine("Left-click: open window", 0.7, 0.64, 0.52)
-  GameTooltip:AddLine("Right-click: pause / resume reminders", 0.7, 0.64, 0.52)
+  GameTooltip:AddLine(M:RemindersPaused() and "Right-click: resume reminders" or "Right-click: pause reminders",
+    0.7, 0.64, 0.52)
   GameTooltip:Show()
 end
 
@@ -36,11 +37,15 @@ function M:Toggle()
   if ns.UI.Main and ns.UI.Main.Toggle then ns.UI.Main:Toggle() end
 end
 
+-- Reminders paused (timed /tauren pause, or this session's minimap pause). Not the seated-clock pause.
+function M:RemindersPaused()
+  if not ns.db then return false end
+  return (ns.now() < (ns.db.nudge.pauseUntil or 0) or ns.ctx.pausedSession) and true or false
+end
+
 function M:TogglePause()
   if not ns.db then return end
-  local N = ns.db.nudge
-  local paused = ns.now() < (N.pauseUntil or 0) or ns.ctx.pausedSession
-  if paused then ns.Do.resume() else ns.Do.pauseSession() end
+  if M:RemindersPaused() then ns.Do.resume() else ns.Do.pauseSession() end
 end
 
 local function place()

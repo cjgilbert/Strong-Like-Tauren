@@ -27,11 +27,13 @@ local function anchorTo(f, gap)
   end
 end
 
--- "Kodo Squats 15" / "Mulgore Stroll 2:00": the full name (pun, else real name) and the amount.
+-- "Kodo Squats (Squats) x15" / "Mulgore Stroll (Walk) 2:00": pun name, the real name in brackets when it differs, then the
+-- amount. Wraps in the toast, never truncated.
 local function slotText(sl)
   local def = ns.env and ns.env.byId[sl.x]
   local name = def and (def.pun or def.name) or sl.x
-  local amt = sl.walk and U.fmtClock(sl.a) or ns.Library.amountText(def, sl.a)
+  if def and def.pun and def.name and def.pun ~= def.name then name = name .. " (" .. def.name .. ")" end
+  local amt = sl.walk and U.fmtClock(sl.a) or ns.Library.amountText(def, sl.a, "x")
   return name .. " " .. amt
 end
 
@@ -64,6 +66,24 @@ local function firstTimed()
       end
     end
   end
+end
+
+-- Exactly one pending exercise that is not timed: returns its item id and slot index, else nil.
+local function singleUntimed()
+  local w, f = liveItems()
+  local found, n = nil, 0
+  for _, it in ipairs({ w or false, f or false }) do
+    if it then
+      for idx, sl in ipairs(it.slots) do
+        if not sl.o then
+          n = n + 1
+          local def = ns.env and ns.env.byId[sl.x]
+          found = { it.id, idx, ((def and def.kind == "s") or sl.walk) and true or false }
+        end
+      end
+    end
+  end
+  if n == 1 and not found[3] then return found[1], found[2] end
 end
 
 -- Dismissing is never a skip: everything stays queued in the Totem.
@@ -109,6 +129,14 @@ local function build()
   frame.close = th.CloseButton(frame, dismiss)
   frame.go = th.Button(frame, "Let's go", 150, 24, function()
     ns.Do.ack()
+    if not cur.sample then
+      local oid, oidx = singleUntimed()
+      if oid then -- a lone untimed exercise: "Done" completes it right here
+        Ts:Hide()
+        ns.Do.complete(oid, oidx, nil)
+        return
+      end
+    end
     local id, idx = firstTimed()
     Ts:Hide()
     ns.Do.setSetting("totem.collapsed", false)
@@ -122,6 +150,11 @@ local function build()
     Ts:Hide()
   end)
   frame.snooze:SetPoint("BOTTOMRIGHT", -PAD, 12)
+  th.Tooltip(frame.snooze, { "Snooze 10", "Hides all pending exercises for 10 minutes." })
+  th.Tooltip(frame.go, function()
+    if frame.go:GetText() == "Done" then return { "Done", "Mark this exercise as finished." } end
+    return { "Let's go", "Opens the Totem, and starts the countdown for a timed exercise." }
+  end)
 
   -- a click anywhere on the body dismisses it (the buttons swallow their own clicks)
   frame:SetScript("OnMouseUp", function() dismiss() end)
@@ -199,8 +232,9 @@ end
 
 -- Re-renders the list from the live queue (or the Settings sample); returns how many lines are still pending.
 local function render()
-  local ls = cur.sample and { "Kodo Squats 15", "Mulgore Stroll 2:00" } or pending(liveItems())
+  local ls = cur.sample and { "Kodo Squats (Squats) x15", "Mulgore Stroll 2:00" } or pending(liveItems())
   frame.text:SetText(table.concat(ls, " \194\183 "))
+  frame.go:SetText((not cur.sample and singleUntimed()) and "Done" or "Let's go")
   -- Double Feat: a subtitle line sits above the list (wraps, never truncated) and pushes it down
   local _, F = liveItems()
   local subH = 0

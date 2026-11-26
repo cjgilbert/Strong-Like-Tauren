@@ -50,17 +50,28 @@ function Kit.tierOptions()
   return o
 end
 
+-- Remembered for this session only; the Advanced section starts collapsed.
+local advancedOpen = false
+
 function Settings.build(parent)
   local root = CreateFrame("Frame", nil, parent)
   local scroll, content = Kit.scroll(root, 616, 418)
   scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 0, 0)
   local flow = Kit.flow(content, 588)
   local list = {}
-  root.list = list
+  root.list, root.content, root.flow = list, content, flow
   local function refreshAll() for _, x in ipairs(list) do x:Refresh() end end
 
-  local function check(label, path) flow:add(Kit.settingCheck(content, list, label, path), 24) end
-  local function step(label, path, fmt) flow:add(Kit.settingStep(content, list, label, path, fmt), 24) end
+  local function check(label, path, tip)
+    local c = Kit.settingCheck(content, list, label, path)
+    flow:add(c, 24)
+    if tip then Kit.tip(c, tip) end
+  end
+  local function step(label, path, fmt, tip, w)
+    local c = Kit.settingStep(content, list, label, path, fmt, w)
+    flow:add(c, 24)
+    if tip then Kit.tip(c, tip) end
+  end
   local function seg(options, path) flow:add(Kit.settingSeg(content, list, options, path), 26) end
 
   -- Intensity
@@ -70,68 +81,20 @@ function Settings.build(parent)
   step(L["Custom tier"], "tier", fmtPct)
   local tierNote = flow:note("")
   list[#list + 1] = { Refresh = function() tierNote:SetText(L["Current tier: "] .. C.tierName(get("tier"))) end }
-  flow:note(L["Per-muscle-group intensity. Tick \"Use tier\" to follow the setting above."])
-  for _, g in ipairs(C.GROUPS) do
-    if C.CAPPED[g] then
-      local st
-      st = Kit.stepper(content, C.GROUP_NAME[g], function()
-        return (ns.db.settings.groupPct and ns.db.settings.groupPct[g]) or get("tier")
-      end, function(v) ns.Do.setGroupPct(g, v) end, 10, 300, 5, fmtPct, 400)
-      flow:add(st, 24)
-      local cb = Kit.check(content, L["Use tier"], function()
-        return not (ns.db.settings.groupPct and ns.db.settings.groupPct[g])
-      end, function(v)
-        if v then ns.Do.setGroupPct(g, nil) else ns.Do.setGroupPct(g, get("tier")) end
-        refreshAll()
-      end, 120)
-      cb:SetPoint("LEFT", st, "RIGHT", 10, 0)
-      list[#list + 1] = {
-        Refresh = function()
-          st:Refresh()
-          cb:Refresh()
-          st:SetEnabled((ns.db.settings.groupPct and ns.db.settings.groupPct[g] ~= nil) and true or false)
-        end,
-      }
-    end
-  end
 
   -- Breaks
   flow:header(L["Breaks (Walkabouts)"])
   step(L["Break every (sitting minutes)"], "walk.every", fmtMin)
-  flow:note(L["Break length: how long each Walkabout lasts. Research suggests 2 to 5 minutes."])
-  seg({ { 1, L["Minimum 1"] }, { 2, L["Recommended 2"] }, { 5, L["Max benefit 5"] } }, "walk.dose")
   step(L["Break length"], "walk.dose", fmtMin)
+  flow:note(L["1 min minimum \194\183 2 recommended \194\183 5 max benefit. Research suggests 2 to 5 minutes."])
   step(L["Longest break (after long sessions)"], "walk.max", fmtMin)
 
   -- Feats
   flow:header(L["Feats of Strength"])
-  step(L["Minutes of play to fill Rage"], "rage.full", fmtMin)
-  step(L["Minimum gap between Feats"], "rage.cd", fmtMin)
   step(L["Exercises per Feat"], "feat.slots", fmtInt)
-  do
-    local bankChk = Kit.settingCheck(content, list, L["Bank extra Rage (Double Feats)"], "rage.bank")
-    flow:add(bankChk, 24)
-    pcall(UI.Theme.Tooltip, bankChk, { L["Bank extra Rage (Double Feats)"],
-      L["Rage keeps building past a full bar, up to 200. At 200 your next Feat is a Double Feat with twice the exercises."] })
-  end
-  step(L["Feat expires after (hours)"], "feat.expireH", fmtInt)
+  check(L["Bank extra Rage (Double Feats)"], "rage.bank",
+    L["Rage keeps building past a full bar, up to 200. At 200 your next Feat is a Double Feat with twice the exercises."])
   seg({ { "walk", L["With the next Walkabout"] }, { "asap", L["Right away"] } }, "feat.delivery")
-
-  -- Rage sources
-  flow:header(L["Rage sources"])
-  flow:note(L["How much Rage each event adds. 0 turns a source off."])
-  step(L["Starting Rage"], "rage.start", fmtInt)
-  for _, k in ipairs(C.RAGE_KINDS) do step(C.RAGE_NAME[k], "rage.w." .. k, fmtInt) end
-
-  -- Recovery
-  flow:header(L["Recovery"])
-  flow:note(L["How quickly a muscle group recovers (half-life, in minutes)."])
-  seg({ { 40, L["Troll Regeneration 40"] }, { 60, L["Standard 60"] }, { 90, L["Ancient 90"] } }, "halfLife")
-
-  -- Caps
-  flow:header(L["Caps"])
-  step(L["Max sets per muscle group per hour"], "cap.hour", function(v) return ("%.1f"):format(v) end)
-  step(L["Max sets per muscle group per day"], "cap.day", fmtInt)
 
   -- Filters & equipment
   flow:header(L["Filters & equipment"])
@@ -145,23 +108,20 @@ function Settings.build(parent)
 
   -- Dungeons
   flow:header(L["Dungeons"])
-  seg({ { "hold", L["Hold until I leave"] }, { "pulls", L["Nudge between pulls"] } }, "dungeon")
+  seg({ { "hold", L["Hold until I leave"] }, { "pulls", L["Remind between pulls"] } }, "dungeon")
 
   -- Notifications
   flow:header(L["Notifications"])
-  step(L["Minimum gap between nudges"], "nudge.gap", fmtMin)
+  step(L["Wait before reminding again (if ignored)"], "nudge.gap", fmtMin,
+    L["Only applies when you ignore a reminder: the wait doubles 10, 20, 40, then 60 minutes while it is ignored. Brand-new exercises and the end of a snooze always remind you."], 520)
   check(L["Play sounds"], "nudge.sound")
   seg({ { "alert", L["Alert"] }, { "horn", L["Horn"] }, { "chime", L["Chime"] }, { "menu", L["Menu"] } }, "nudge.soundKind")
   flow:add(Kit.button(content, L["Test"], 100, 24, function()
     ns.nudgeSound(true)
     if UI.Toast and UI.Toast.Sample then UI.Toast:Sample() end
   end), 26)
-  check(L["Also show nudges in the centre of the screen"], "nudge.center")
-
-  -- Away
-  flow:header(L["Away"])
-  step(L["Ask about away time after"], "away.ask", fmtMin)
-  step(L["Count away time as a break after"], "away.credit", fmtMin)
+  check(L["Also flash a big text banner"], "nudge.center",
+    L["The reminder window always appears at the top of the screen. This adds a large text flash too."])
 
   -- Totem
   flow:header(L["Totem"])
@@ -180,7 +140,69 @@ function Settings.build(parent)
   -- General
   flow:header(L["General"])
   check(L["Enabled"], "enabled")
+
+  -- Advanced (collapsed by default)
+  flow:space(8)
+  local sec = flow:collapsible(L["Advanced settings (show)"], L["Advanced settings (hide)"], advancedOpen,
+    function(open)
+      advancedOpen = open
+      if root.OnToggle then root.OnToggle(open) end
+    end)
+  root.advanced = sec
+  flow:note(L["Fine tuning. The defaults suit most people."])
+
+  flow:header(L["Per-muscle-group intensity"])
+  flow:note(L["Tick \"Use tier\" to follow the Intensity setting above."])
+  for _, g in ipairs(C.GROUPS) do
+    if C.CAPPED[g] then
+      local st
+      st = Kit.stepper(content, C.GROUP_NAME[g], function()
+        return (ns.db.settings.groupPct and ns.db.settings.groupPct[g]) or get("tier")
+      end, function(v) ns.Do.setGroupPct(g, v) end, 10, 300, 5, fmtPct, 400)
+      flow:add(st, 24)
+      local cb = Kit.check(content, L["Use tier"], function()
+        return not (ns.db.settings.groupPct and ns.db.settings.groupPct[g])
+      end, function(v)
+        if v then ns.Do.setGroupPct(g, nil) else ns.Do.setGroupPct(g, get("tier")) end
+        refreshAll()
+      end, 120)
+      cb:SetPoint("LEFT", st, "RIGHT", 10, 0)
+      flow:track(cb)
+      list[#list + 1] = {
+        Refresh = function()
+          st:Refresh()
+          cb:Refresh()
+          st:SetEnabled((ns.db.settings.groupPct and ns.db.settings.groupPct[g] ~= nil) and true or false)
+        end,
+      }
+    end
+  end
+
+  flow:header(L["Feats of Strength: timing"])
+  step(L["Minutes of play to fill Rage"], "rage.full", fmtMin)
+  step(L["Minimum gap between Feats"], "rage.cd", fmtMin)
+  step(L["Feat expires after (hours)"], "feat.expireH", fmtInt)
+
+  flow:header(L["Rage sources"])
+  flow:note(L["How much Rage each event adds. 0 turns a source off."])
+  step(L["Starting Rage"], "rage.start", fmtInt)
+  for _, k in ipairs(C.RAGE_KINDS) do step(C.RAGE_NAME[k], "rage.w." .. k, fmtInt) end
+
+  flow:header(L["Recovery"])
+  flow:note(L["How quickly a muscle group recovers (half-life, in minutes)."])
+  seg({ { 40, L["Troll Regeneration 40"] }, { 60, L["Standard 60"] }, { 90, L["Ancient 90"] } }, "halfLife")
+
+  flow:header(L["Caps"])
+  step(L["Max sets per muscle group per hour"], "cap.hour", function(v) return ("%.1f"):format(v) end)
+  step(L["Max sets per muscle group per day"], "cap.day", fmtInt)
+
+  flow:header(L["Away"])
+  step(L["Ask about away time after"], "away.ask", fmtMin)
+  step(L["Count away time as a break after"], "away.credit", fmtMin)
+
+  flow:header(L["Day"])
   step(L["Day starts at (hour)"], "dayStart", function(v) return ("%d:00"):format(v) end)
+  flow:endCollapsible()
   flow:finish()
   return root
 end

@@ -240,6 +240,12 @@ function Kit.flow(content, width)
     obj:ClearAllPoints()
     obj:SetPoint("TOPLEFT", content, "TOPLEFT", x or 0, -self.y)
     self.y = self.y + (h or obj:GetHeight()) + 4
+    self:track(obj)
+    return obj
+  end
+  -- Everything added between :collapsible() and :endCollapsible() is shown/hidden together.
+  function F:track(obj)
+    if self.coll and obj then self.coll.items[#self.coll.items + 1] = obj end
     return obj
   end
   function F:space(n) self.y = self.y + (n or 8) end
@@ -248,6 +254,7 @@ function Kit.flow(content, width)
     local fs = Kit.text(content, text, "GameFontNormalLarge", COL.gold, self.width)
     fs:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -self.y)
     self.y = self.y + 22
+    self:track(fs)
     return fs
   end
   function F:note(text, indent, font, c)
@@ -256,9 +263,40 @@ function Kit.flow(content, width)
     fs:SetPoint("TOPLEFT", content, "TOPLEFT", indent, -self.y)
     local h = math.max(12, fs:GetStringHeight() or 12)
     self.y = self.y + h + 6
+    self:track(fs)
     return fs
   end
-  function F:finish() content:SetHeight(self.y + 10) end
+  -- Collapsible tail section: a toggle button, then the tracked items. Must be the last block in the flow.
+  -- Returns the section table { open, button, items, toggle(open) }. `onChange(open)` lets callers remember the state.
+  function F:collapsible(showText, hideText, open, onChange)
+    local sec = { open = open and true or false, items = {} }
+    local btn = Kit.button(content, "", 260, 24, function() sec.toggle(not sec.open) end)
+    self:add(btn, 26)
+    sec.button = btn
+    self.coll = sec
+    sec.y0 = self.y
+    function sec.toggle(v)
+      sec.open = v and true or false
+      btn:SetText(sec.open and hideText or showText)
+      for _, o in ipairs(sec.items) do if sec.open then o:Show() else o:Hide() end end
+      F:finish()
+      if onChange then onChange(sec.open) end
+    end
+    return sec
+  end
+  function F:endCollapsible()
+    local sec = self.coll
+    if not sec then return end
+    sec.y1 = self.y
+    self.coll = nil
+    self.sec = sec
+    sec.toggle(sec.open)
+  end
+  function F:finish()
+    local y = self.y
+    if self.sec and not self.sec.open then y = self.sec.y0 end
+    content:SetHeight(y + 10)
+  end
   return F
 end
 

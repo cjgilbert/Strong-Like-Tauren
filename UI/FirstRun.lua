@@ -43,6 +43,7 @@ local function build()
 
   flow:header(L["Break length"])
   flow:add(Kit.settingSeg(content, list, { { 1, L["Minimum 1"] }, { 2, L["Recommended 2"] }, { 5, L["Max benefit 5"] } }, "walk.dose", 500), 26)
+  flow:note(L["You can pick any length from 1 to 5 minutes later in Settings."])
 
   flow:header(L["Keep it comfortable"])
   flow:add(Kit.settingCheck(content, list, L["Quiet: no jumping exercises"], "filters.quiet", 480), 24)
@@ -53,6 +54,15 @@ local function build()
   for _, k in ipairs(C.EQUIP) do
     flow:add(Kit.settingCheck(content, list, C.EQUIP_NAME[k], "equip." .. k, 480), 24)
   end
+  flow:header(L["How it works"])
+  flow:note(L["Reminders appear in a small window at the top of your screen when an exercise is due."], 0, "GameFontHighlight", COL.text)
+  flow:note(L["The Totem tracker lists what is due. Click Done when you have done it, Snooze to put it off, or Skip to let it go."], 0, "GameFontHighlight", COL.text)
+  flow:note(L["Nothing pops up while you are in combat. Reminders wait until it is safe."], 0, "GameFontHighlight", COL.text)
+  f.sampleBtn = Kit.button(content, L["Show me a sample reminder"], 240, 26, function()
+    if UI.Toast and UI.Toast.Sample then pcall(UI.Toast.Sample, UI.Toast) end
+    if UI.Totem and UI.Totem.Show then pcall(UI.Totem.Show, UI.Totem) end
+  end)
+  flow:add(f.sampleBtn, 28)
   flow:finish()
 
   local go = Kit.button(f, L["Let's go"], 160, 30, function()

@@ -57,6 +57,11 @@ ns.D.QUIPS = {
   rageCappedOff = { -- %s = time left (banking off: the bar is full at 100)
     L["Rage capped. Feat in %s."],
   },
+  featExpired = { -- a Feat ran out its clock unfinished
+    L["Your Feat of Strength expired. No penalty, Rage keeps building."],
+    L["Your Feat expired unclaimed. No harm done: your Rage keeps building."],
+    L["That Feat of Strength expired. The plains forgive you; a new one will come."],
+  },
   taxi = {
     L["Flight time! Perfect for a quick Walkabout."],
     L["Wind rider's got the reins. Your legs are free."],

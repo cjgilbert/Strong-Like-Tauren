@@ -22,6 +22,9 @@ local HOLD_H = 14 -- fixed status line at the bottom, reserved only while remind
 local holdReserved = false
 local SNOOZE_H = 22 -- snoozed-with-work line (text + "Do now" button), same bottom slot as the hold line
 local snoozeReserved = false
+local PAUSE_H = 22 -- paused line (text + "Resume" button), same bottom slot as the snoozed line
+local pauseReserved = false
+local SKIP_W = 62 -- row buttons: Done 50, Start 50, Snooze 56, Swap 46, Skip... 62 + 3 px gaps stay inside WIDTH - 12
 local HOLD_WHY = {
   combat = "in combat", encounter = "boss fight", loading = "loading", dead = "dead", cinematic = "cutscene",
   settling = "just a moment", instance = "instance", away = "away",
@@ -68,47 +71,81 @@ function Tm:ResetPosition()
   end
 end
 
--- Snooze menu ----------------------------------------------------------------------------------------------------------
-local function buildSnoozeMenu()
+-- Small pop-up menus (snooze, skip) -------------------------------------------------------------------------------------
+-- entries = { {label, fn}, ... }; header (optional) is a dim line above the buttons. Closes when the mouse leaves.
+local skipMenu
+local MENU_HEAD = 16
+local function buildMenu(name, w, header, entries)
   local th = theme()
-  snoozeMenu = th.Panel(UIParent, "StrongLikeTaurenSnoozeMenu", 110, 100)
-  snoozeMenu:SetFrameStrata("DIALOG")
-  snoozeMenu:Hide()
-  snoozeMenu.btns = {}
-  local function add(i, label, fn)
-    local b = th.Button(snoozeMenu, label, 98, 20, function()
-      snoozeMenu:Hide()
-      fn()
-    end)
-    b:SetPoint("TOP", 0, -6 - (i - 1) * 22)
-    snoozeMenu.btns[i] = b
-    return b
+  local m = th.Panel(UIParent, name, w + 12, 12)
+  m:SetFrameStrata("DIALOG")
+  m:Hide()
+  m.btns = {}
+  m.top = header and MENU_HEAD or 0
+  if header then
+    m.head = th.Text(m, "GameFontNormalSmall", header, th.C.dim)
+    m.head:SetPoint("TOPLEFT", 8, -6)
   end
-  add(1, "5 min", function() ns.Do.snooze(5) end)
-  add(2, "10 min", function() ns.Do.snooze(10) end)
-  add(3, "20 min", function() ns.Do.snooze(20) end)
-  add(4, "Until I leave", function() ns.Do.snoozeInstance() end)
-  snoozeMenu.leaveAt = 0
-  snoozeMenu:SetScript("OnUpdate", function(self, el)
+  for i, e in ipairs(entries) do
+    local b = th.Button(m, e[1], w, 20, function()
+      m:Hide()
+      e[2](m)
+    end)
+    b:SetPoint("TOP", 0, -6 - m.top - (i - 1) * 22)
+    m.btns[i] = b
+  end
+  m:SetHeight(12 + m.top + #entries * 22 - 2)
+  m:SetScript("OnUpdate", function(self, el)
     local over = self:IsMouseOver() or (self.anchor and self.anchor:IsMouseOver())
     if over then self.idle = 0 else
       self.idle = (self.idle or 0) + el
       if self.idle > 0.6 then self:Hide() end
     end
   end)
+  return m
 end
 
+local function openMenu(m, anchor, shownCount)
+  if m:IsShown() and m.anchor == anchor then m:Hide() return end
+  if snoozeMenu and snoozeMenu ~= m then snoozeMenu:Hide() end
+  if skipMenu and skipMenu ~= m then skipMenu:Hide() end
+  m:SetHeight(12 + m.top + (shownCount or #m.btns) * 22 - 2)
+  m.anchor = anchor
+  m.idle = 0
+  m:ClearAllPoints()
+  m:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
+  m:Show()
+end
+
+-- Snooze hides everything (it is global), so the menu says so.
 local function openSnoozeMenu(anchor)
-  if not snoozeMenu then buildSnoozeMenu() end
-  if snoozeMenu:IsShown() and snoozeMenu.anchor == anchor then snoozeMenu:Hide() return end
+  if not snoozeMenu then
+    snoozeMenu = buildMenu("StrongLikeTaurenSnoozeMenu", 98, "Hide all for:", {
+      { "5 min", function() ns.Do.snooze(5) end },
+      { "10 min", function() ns.Do.snooze(10) end },
+      { "20 min", function() ns.Do.snooze(20) end },
+      { "Until I leave", function() ns.Do.snoozeInstance() end },
+    })
+  end
   local inInst = ns.ctx and ns.ctx.inst and ns.ctx.inst ~= "none"
   snoozeMenu.btns[4]:SetShown(inInst and true or false)
-  snoozeMenu:SetHeight(inInst and 106 or 84)
-  snoozeMenu.anchor = anchor
-  snoozeMenu.idle = 0
-  snoozeMenu:ClearAllPoints()
-  snoozeMenu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
-  snoozeMenu:Show()
+  openMenu(snoozeMenu, anchor, inInst and 4 or 3)
+end
+
+-- Skip is a tiny menu so "I did some..." (partial logging) is one visible click away.
+local function openSkipMenu(anchor, row)
+  if not skipMenu then
+    skipMenu = buildMenu("StrongLikeTaurenSkipMenu", 100, nil, {
+      { "Skip", function(m)
+        if m.itemId then ns.Do.skip(m.itemId, m.idx) end
+      end },
+      { "I did some...", function(m)
+        if m.itemId and ns.UI.Prompts then ns.UI.Prompts:Partial(m.itemId, m.idx) end
+      end },
+    })
+  end
+  skipMenu.itemId, skipMenu.idx = row.itemId, row.idx
+  openMenu(skipMenu, anchor)
 end
 
 -- Rows -------------------------------------------------------------------------------------------------------------------
@@ -164,11 +201,14 @@ local function buildRow(i)
     local ok, why = ns.Do.swap(r.itemId, r.idx)
     if ok == false and why then ns.say(SWAP_WHY[why] or tostring(why)) end
   end))
-  r.skip = th.Button(r, "Skip", 44, 18, act(function() ns.Do.skip(r.itemId, r.idx) end))
+  -- "Skip..." opens a tiny menu (Skip / I did some...). A separate "Some" button does not fit the fixed row width.
+  r.skip = th.Button(r, "Skip...", SKIP_W, 18, act(function() openSkipMenu(r.skip, r) end))
   -- fixed widths, so layout never reads frame geometry (safe in combat)
-  r.done._w, r.start._w, r.snooze._w, r.swap._w, r.skip._w = 50, 50, 56, 46, 44
+  r.done._w, r.start._w, r.snooze._w, r.swap._w, r.skip._w = 50, 50, 56, 46, SKIP_W
   r.btnList = { r.done, r.start, r.snooze, r.swap, r.skip }
   th.Tooltip(r.done, { "Done", "Left-click: finished it all.", "Right-click: log a partial amount." })
+  th.Tooltip(r.snooze, { "Snooze all", "Hides all pending exercises for a while. They come back with a reminder." })
+  th.Tooltip(r.skip, { "Skip or log some", "Skip this one, or log that you did only part of it." })
   th.Tooltip(r, function()
     local d = r.def
     if not d then return nil end
@@ -177,6 +217,11 @@ local function buildRow(i)
     lines[#lines + 1] = itemLabel(r.item) .. " \194\183 " .. amountText(d, r.slot)
     if d.desc then lines[#lines + 1] = d.desc end
     if r.slot and r.slot.why then lines[#lines + 1] = r.slot.why end
+    local it = r.item
+    if it and it.k == "F" and it.exp then
+      local left = it.exp - ns.now()
+      if left > 0 then lines[#lines + 1] = "Expires in " .. U.fmtDuration(left) end
+    end
     return lines
   end)
   r:Hide()
@@ -237,8 +282,22 @@ local function holdText()
   if not (ns.db and ns.ready and #entries > 0) then return nil end
   local g = ns.Scheduler.gate(ns.db, ns.now(), ns.ctx or {})
   if g.may or not g.why or g.why == "snoozed" or g.why == "off" then return nil end
-  if g.why == "paused" then return "Reminders paused" end
+  if g.why == "paused" then return nil end -- shown by pauseInfo (own line with a Resume button)
   return "Reminder waits: " .. (HOLD_WHY[g.why] or g.why)
+end
+
+-- The gate says "paused" for three different things; tell them apart. Returns text, kind ("reminders"|"clock") or nil.
+-- Reminder pause (minimap right-click, /tauren pause) wins over the seated-clock pause (Totem pause icon).
+local function pauseInfo()
+  if not (ns.db and ns.ready and #entries > 0) then return nil end
+  local t = ns.now()
+  local g = ns.Scheduler.gate(ns.db, t, ns.ctx or {})
+  if g.may or g.why ~= "paused" then return nil end
+  local left = (ns.db.nudge.pauseUntil or 0) - t
+  if left > 0 then return "Reminders paused \194\183 " .. U.fmtDuration(left) .. " left", "reminders" end
+  if ns.ctx and ns.ctx.pausedSession then return "Reminders paused \194\183 until reload", "reminders" end
+  if ns.db.body.paused then return "Clock paused \194\183 getting up", "clock" end
+  return "Reminders paused", "reminders"
 end
 
 -- Pending rows, ignoring any snooze. Under "with the next Walkabout" a lone Feat stays out of the Totem until it is
@@ -321,6 +380,12 @@ function Tm:UpdateHeader()
   frame.snoozed:SetText(sn or "")
   frame.snoozed:SetShown(sn ~= nil)
   frame.doNow:SetShown(sn ~= nil)
+  local pt, pk = nil, nil
+  if pauseReserved then pt, pk = pauseInfo() end
+  frame.paused:SetText(pt or "")
+  frame.paused:SetShown(pt ~= nil)
+  frame.resume.kind = pk
+  frame.resume:SetShown(pt ~= nil)
 end
 
 -- Refresh -------------------------------------------------------------------------------------------------------------------------
@@ -350,8 +415,9 @@ function Tm:Refresh()
   local n = collapsed and 0 or #entries
   holdReserved = holdText() ~= nil
   snoozeReserved = snoozeText() ~= nil
+  pauseReserved = pauseInfo() ~= nil
   frame:SetHeight(HEADER_H + n * ROW_H + (n > 0 and 4 or 0) + (holdReserved and HOLD_H or 0)
-    + (snoozeReserved and SNOOZE_H or 0))
+    + (snoozeReserved and SNOOZE_H or 0) + (pauseReserved and PAUSE_H or 0))
   self:UpdateHeader()
   if hidden or (s.totem.hideIdle and #entries == 0 and not snoozeReserved) then frame:Hide() else frame:Show() end
 end
@@ -439,6 +505,22 @@ function Tm:Init()
   frame.doNow:Hide()
   th.Tooltip(frame.doNow, { "Do now", "Bring back snoozed exercises now" })
 
+  -- Paused line: which pause it is on the left, a fixed-size "Resume" button on the right (same slot as the snoozed line).
+  frame.paused = th.Text(frame, "GameFontNormalSmall", "", th.C.amber)
+  frame.paused:SetHeight(12)
+  frame.paused:SetWordWrap(false)
+  frame.paused:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 10, 6)
+  frame.paused:Hide()
+  frame.resume = th.Button(frame, "Resume", 56, 18, function()
+    if frame.resume.kind == "clock" then ns.Do.resumeClock() else ns.Do.resume() end
+  end)
+  frame.resume:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -6, 3)
+  frame.resume:Hide()
+  th.Tooltip(frame.resume, function()
+    if frame.resume.kind == "clock" then return { "Resume", "Restart the seated clock where it stopped." } end
+    return { "Resume", "Turn reminders back on now." }
+  end)
+
   frame.collapse = th.Button(frame, "-", 18, 18, function()
     ns.Do.setSetting("totem.collapsed", not ns.db.settings.totem.collapsed)
   end)
@@ -454,6 +536,36 @@ function Tm:Init()
   frame.lock:SetPoint("TOPRIGHT", -6, -27)
   th.Tooltip(frame.lock, { "Lock position", "Locked Totems cannot be dragged." })
 
+  frame.seat:EnableMouse(true)
+  th.Tooltip(frame.seat, function()
+    if not (ns.db and ns.ready) then return nil end
+    local st = ns.Scheduler.status(ns.db, ns.now(), ns.ctx)
+    local s = ns.db.settings
+    local lines = { "Seated clock",
+      ("%s of sitting. A Walkabout comes due at %d min."):format(U.fmtClock(st.seated), s.walk.every) }
+    if st.rooted > 0 then
+      lines[#lines + 1] = ("Rooted x%d: your Walkabout grows by a minute every 15 min overdue (max %d min). Never owed.")
+        :format(st.rooted, s.walk.max)
+    end
+    if st.paused then lines[#lines + 1] = "Paused while you're up." end
+    return lines
+  end)
+  frame.rage:EnableMouse(true)
+  th.Tooltip(frame.rage, function()
+    if not (ns.db and ns.ready) then return nil end
+    local st = ns.Scheduler.status(ns.db, ns.now(), ns.ctx)
+    local s = ns.db.settings
+    local lines = { "Rage",
+      ("Fills from play (+100 per %d min) and from quests, dings, deaths, bosses, new zones and Hearthstone. At 100 you earn a Feat of Strength, at most one every %d min.")
+        :format(s.rage.full, s.rage.cd) }
+    if s.rage.bank then
+      lines[#lines + 1] = "Rage over 100 is banked up to 200; at 200 your next Feat is a Double Feat."
+    end
+    if st.rage >= 100 and st.featCooldown > 0 then
+      lines[#lines + 1] = "Next Feat in " .. U.fmtDuration(st.featCooldown)
+    end
+    return lines
+  end)
   th.Tooltip(frame.rep, function()
     local _, _, total = repProgress()
     return { "Bloodhoof Athletic Club", total }
@@ -473,7 +585,8 @@ function Tm:Init()
         else
           ns.guard(Tm.Refresh, Tm) -- a snooze began
         end
-      elseif ns.ready and ns.db and ((holdText() ~= nil) ~= holdReserved or (snoozeText() ~= nil) ~= snoozeReserved) then
+      elseif ns.ready and ns.db and ((holdText() ~= nil) ~= holdReserved or (snoozeText() ~= nil) ~= snoozeReserved
+          or (pauseInfo() ~= nil) ~= pauseReserved) then
         ns.guard(Tm.Refresh, Tm) -- reminders went on hold or came off hold
       end
       if frame:IsShown() then Tm:UpdateHeader() end
